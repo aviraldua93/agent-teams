@@ -1260,12 +1260,12 @@ function Invoke-Clean([string]$teamName) {
 function Show-Help {
     Write-Host ""
     Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║  Agent Teams for GitHub Copilot CLI   v0.5  ║" -ForegroundColor Cyan
+    Write-Host "  ║  Agent Teams for GitHub Copilot CLI   v0.6  ║" -ForegroundColor Cyan
     Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  COMMANDS" -ForegroundColor Yellow
     Write-Host "    init   <name> <scenario> [template]        Create a new team" -ForegroundColor White
-    Write-Host "           templates: feature, fullstack, sprint, bugfix, refactor, research, ship, audit" -ForegroundColor Gray
+    Write-Host "           templates: feature, fullstack, sprint, bugfix, refactor, research, ship, audit, data-science, ml-experiment, data-pipeline, harness, doc-review" -ForegroundColor Gray
     Write-Host "    role   <name> <key> <description> [model]  Add a role (generates role file)" -ForegroundColor White
     Write-Host "    task   <name> <id> <title> <role> [deps]   Add a task" -ForegroundColor White
     Write-Host "    launch <name>                              Orchestrate: spawn waves, wait, unblock, repeat" -ForegroundColor White

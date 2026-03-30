@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6)
 ![PowerShell 7+](https://img.shields.io/badge/PowerShell-7%2B-5391FE)
-![Version](https://img.shields.io/badge/Version-0.5.0-green)
+![Version](https://img.shields.io/badge/Version-0.6.0-green)
 ![GitHub Copilot CLI](https://img.shields.io/badge/GitHub%20Copilot-CLI-8957e5)
 [![GitHub Issues](https://img.shields.io/github/issues/aviraldua93/agent-teams)](https://github.com/aviraldua93/agent-teams/issues)
 ![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen)
@@ -130,7 +130,7 @@ Every agent reads from the same directory. Every agent writes only to files it o
 
 ## Templates
 
-Eleven preset templates across three domains. Pick one, customize it, or let the planner compose a team from scratch.
+Thirteen preset templates across four domains. Pick one, customize it, or let the planner compose a team from scratch.
 
 ### 🔧 Engineering
 
@@ -156,7 +156,14 @@ Eleven preset templates across three domains. Pick one, customize it, or let the
 | Template | Agents | Flow | Use Case |
 |----------|--------|------|----------|
 | **`research`** | researcher ×3, synthesizer | 3 parallel investigations → synthesize | Multi-angle analysis |
-| **`audit`** | security, perf, quality, synthesizer | 3 parallel audits → synthesize | Code audit with severity ratings |
+| **`audit`** | security-reviewer, perf-reviewer, quality-reviewer, synthesizer | 3 parallel audits → synthesize | Code audit with severity ratings |
+| **`harness`** | planner, generator, evaluator | spec → implement ↔ evaluate (loop) | Iterative build with evaluator feedback |
+
+### 📝 Documentation
+
+| Template | Agents | Flow | Use Case |
+|----------|--------|------|----------|
+| **`doc-review`** | accuracy, completeness, audience, platform, synthesizer | 4 parallel reviews → synthesize | Documentation quality review |
 
 ```powershell
 # Engineering
@@ -175,6 +182,10 @@ team init ingest-pipeline "ETL from S3 to warehouse" data-pipeline
 # Operations
 team init framework-eval "Evaluate React vs Svelte vs Solid" research
 team init soc2-prep "Audit before SOC2 compliance review" audit
+team init build-cli "Build CLI with iterative refinement" harness
+
+# Documentation
+team init api-docs "Review API documentation quality" doc-review
 ```
 
 <details>
@@ -261,6 +272,23 @@ graph LR
     R1["🔍 Researcher 1"] --> Syn["📊 Synthesizer"]
     R2["🔍 Researcher 2"] --> Syn
     R3["🔍 Researcher 3"] --> Syn
+```
+
+#### harness
+```mermaid
+graph LR
+    P["📋 Planner"] --> G["💻 Generator"]
+    G --> E["🔍 Evaluator"]
+    E -.->|"fix tasks"| G
+```
+
+#### doc-review
+```mermaid
+graph LR
+    A["📖 Accuracy"] --> S["📊 Synthesizer"]
+    C["📋 Completeness"] --> S
+    AU["👥 Audience"] --> S
+    P["⚙️ Platform"] --> S
 ```
 
 </details>
@@ -480,7 +508,7 @@ current     ─► polish     ─► feedback loops ─► context eng  ─► s
                                grading          handoffs       planner         web dashboard
 ```
 
-**v0.5** (now) — Wave orchestration, 11 templates, 3-probe failure detection, feasibility assessment, 43 unit tests, CI pipeline.
+**v0.5** (now) — Wave orchestration, 13 templates, 3-probe failure detection, feasibility assessment, 43 unit tests, CI pipeline.
 
 **v0.7** (the big one) — Generator ↔ Evaluator loops. Reviewer creates fix tasks, orchestrator runs another wave. Iterative refinement until quality thresholds pass.
 

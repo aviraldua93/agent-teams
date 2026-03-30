@@ -173,13 +173,13 @@ If you are running low on context (you notice your responses getting shorter, yo
    ```
 4. Exit your session (type /exit or let -p complete)
 
-### How handoff works:
+### How handoff works (manual):
 
-When the orchestrator detects a checkpointed agent (heartbeat says "checkpointed"):
-1. It reads the latest checkpoint file
-2. Relaunches the role with an augmented prompt:
-   "You are continuing from a checkpoint. Read artifacts/checkpoints/{role}-checkpoint-{N}.json for your state."
-3. The fresh session picks up from where the previous one left off
+The orchestrator does not yet auto-detect checkpoints. When you checkpoint:
+1. The lead session should notice the "checkpointed" heartbeat via `team status`
+2. The lead runs `team launch <name> <role>` to relaunch the role
+3. The fresh session reads the checkpoint file from its launch prompt
+4. Automated checkpoint detection is planned for a future version
 
 ### Rules:
 - Checkpoint EARLY — don't wait until you're confused
@@ -223,7 +223,7 @@ If every task assigned to you has status `blocked`, you were launched early. Do 
 Each role owns specific files (listed in its role file and manifest). Never write to a file owned by another role. If you need input from another role's output, READ their artifact — don't modify it. Write your own artifact instead.
 
 The only shared-write files are:
-- `tasks.json` — update only your own task statuses
+- `tasks.json` — update your own task statuses. Reviewers may also add new fix tasks (see Review Feedback Loop).
 - `mailbox/*.inbox` — append-only writes to the appropriate inbox
 - `heartbeat/{your-role-key}.json` — only your own heartbeat file
 
