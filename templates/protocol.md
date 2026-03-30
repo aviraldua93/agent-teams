@@ -14,8 +14,11 @@
    - Update your heartbeat (see Heartbeat Protocol below).
    - Do the work. Write your deliverable to the path in `deliverable`.
    - Check `acceptance_criteria` if present — your task is NOT done until ALL criteria are met.
-   - Update status to `done` in tasks.json.
-   - Append a completion message to `mailbox/lead.inbox`.
+   - **CRITICAL — Task completion order (crash-safe):**
+     1. Update status to `done` in tasks.json — **DO THIS FIRST**
+     2. Then append a completion message to `mailbox/lead.inbox`
+     3. Then update heartbeat
+   - Why this order: if you crash mid-completion, the task status is already correct. The orchestrator can proceed. Mailbox and heartbeat are nice-to-have; task status is critical path. The deliverable file on disk IS the proof of work.
 6. When all your tasks are done, append a final "all tasks complete" message to `mailbox/lead.inbox` and set your heartbeat to idle.
 
 ## Rules
