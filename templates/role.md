@@ -33,15 +33,18 @@ reads_from:
 
 ## Sub-Agent Policy
 
-| Sub-Agent Type | Allowed | Notes |
+You SHOULD use sub-agents. Thoroughness matters more than speed. Spawn them liberally.
+
+| Sub-Agent Type | Allowed | When to Use |
 |---|---|---|
-| explore | ✅ | Use for codebase exploration and research |
-| task | ✅ | Use for running builds, tests, and linters |
+| explore | ✅ | ALWAYS use before starting work — understand the codebase, read specs, trace dependencies |
+| task | ✅ | ALWAYS use to validate — run builds, tests, linters after changes |
 | general-purpose | ❌ | Only if your role edits code — customize per role |
 | code-review | ❌ | Only if your role reviews code — customize per role |
 
 > Customize this table when creating the role. Set ✅ for agent types this role needs.
 > Cap: ≤5 concurrent sub-agents. Sub-agents cannot spawn their own sub-agents.
+> **Never skip exploration. Never skip validation. Tokens are not a concern.**
 
 ## Constraints
 

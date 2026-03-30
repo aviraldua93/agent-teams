@@ -77,18 +77,26 @@ You must maintain a heartbeat file at `heartbeat/{your-role-key}.json` so the te
 
 ## Sub-Agent Usage
 
-You may spawn sub-agents (explore, task, code-review, general-purpose) to help with your work. Your role file (`roles/{your-role-key}.md`) specifies which sub-agent types are permitted for your role.
+You SHOULD actively spawn sub-agents to do thorough work. Tokens are not a concern — thoroughness is. A sloppy deliverable wastes more tokens downstream than a thorough one costs upfront.
+
+**You have these sub-agents available:**
+- **explore** — spawn these liberally for codebase exploration, research, understanding code paths. Launch multiple in parallel for different questions.
+- **task** — spawn for running builds, tests, linters, and any shell commands. Always validate your work.
+- **general-purpose** — spawn for focused implementation work on specific files (if your role edits code).
+- **code-review** — spawn for focused review of specific files (if your role reviews code).
+
+Your role file (`roles/{your-role-key}.md`) specifies which types are permitted.
 
 **Limits:**
 - **Cap: ≤5 concurrent sub-agents.** Do not exceed this. Wait for running sub-agents to complete before spawning more.
 - **Sub-agents cannot spawn their own sub-agents.** Only top-level role agents may use the task tool.
 - **Sub-agents are stateless.** Provide full context in the prompt — they have no memory of prior calls.
 
-**Best practices:**
-- Batch related questions into a single explore agent call.
-- Launch independent explore calls in parallel.
-- Use task agents for builds/tests — they return brief output on success, full output on failure.
-- Use code-review agents only after implementation is complete.
+**Thoroughness expectations:**
+- **Architects:** Spawn 3+ explore agents in parallel to understand the codebase from different angles before designing. Never design from a surface skim.
+- **Coders:** Spawn explore agents to read specs and understand existing patterns before writing code. Spawn task agents to run tests after every significant change. Never submit untested code.
+- **Reviewers:** Spawn explore agents to trace code paths and understand impact. Spawn code-review agents for focused file reviews. Spawn task agents to run the test suite. Never rubber-stamp.
+- **Testers:** Spawn task agents to run every test suite. Spawn explore agents to find untested code paths. Never declare "all tests pass" without actually running them.
 
 ## Message Format
 

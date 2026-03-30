@@ -1,83 +1,83 @@
 ﻿<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<test-results xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="nunit_schema_2.5.xsd" name="Pester" total="40" errors="0" failures="0" not-run="0" inconclusive="0" ignored="0" skipped="0" invalid="0" date="2026-03-29" time="20:04:40">
-  <environment user-domain="NORTHAMERICA" platform="Microsoft Windows 11 Enterprise N|C:\WINDOWS|\Device\Harddisk0\Partition4" os-version="10.0.26100" user="aviraldua" nunit-version="2.5.8.0" clr-version="9.0.14" cwd="C:\Users\aviraldua\AppData\Local\Temp\agent-teams-test-145662965" machine-name="CPC-avira-0OX6J" />
+<test-results xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="nunit_schema_2.5.xsd" name="Pester" total="40" errors="0" failures="0" not-run="0" inconclusive="0" ignored="0" skipped="0" invalid="0" date="2026-03-29" time="20:38:51">
+  <environment user-domain="NORTHAMERICA" os-version="10.0.26100" nunit-version="2.5.8.0" platform="Microsoft Windows 11 Enterprise N|C:\WINDOWS|\Device\Harddisk0\Partition4" user="aviraldua" clr-version="9.0.14" machine-name="CPC-avira-0OX6J" cwd="C:\Users\aviraldua\AppData\Local\Temp\agent-teams-test-1948561784" />
   <culture-info current-culture="en-US" current-uiculture="en-US" />
-  <test-suite type="TestFixture" name="Pester" executed="True" result="Success" success="True" time="24.6843" asserts="0" description="Pester">
+  <test-suite type="TestFixture" name="Pester" executed="True" result="Success" success="True" time="21.5911" asserts="0" description="Pester">
     <results>
-      <test-suite type="TestFixture" name="C:\Users\aviraldua\OneDrive - Microsoft\Desktop\Git-Personal\agent-teams\tests\team.tests.ps1" executed="True" result="Success" success="True" time="24.6843" asserts="0" description="C:\Users\aviraldua\OneDrive - Microsoft\Desktop\Git-Personal\agent-teams\tests\team.tests.ps1">
+      <test-suite type="TestFixture" name="C:\Users\aviraldua\OneDrive - Microsoft\Desktop\Git-Personal\agent-teams\tests\team.tests.ps1" executed="True" result="Success" success="True" time="21.5911" asserts="0" description="C:\Users\aviraldua\OneDrive - Microsoft\Desktop\Git-Personal\agent-teams\tests\team.tests.ps1">
         <results>
-          <test-suite type="TestFixture" name="team init" executed="True" result="Success" success="True" time="2.9554" asserts="0" description="team init">
+          <test-suite type="TestFixture" name="team init" executed="True" result="Success" success="True" time="2.7398" asserts="0" description="team init">
             <results>
-              <test-case description="creates team directory structure" name="team init.creates team directory structure" time="0.6354" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="stores correct manifest data" name="team init.stores correct manifest data" time="0.4106" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="creates tasks.json with empty tasks array" name="team init.creates tasks.json with empty tasks array" time="0.3579" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="creates protocol.md from template" name="team init.creates protocol.md from template" time="0.3515" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="pre-creates mailbox/lead.inbox" name="team init.pre-creates mailbox/lead.inbox" time="0.3525" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="fails gracefully if team already exists" name="team init.fails gracefully if team already exists" time="0.3949" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="stores created timestamp in manifest" name="team init.stores created timestamp in manifest" time="0.3792" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="creates team directory structure" name="team init.creates team directory structure" time="0.6018" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="stores correct manifest data" name="team init.stores correct manifest data" time="0.3696" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="creates tasks.json with empty tasks array" name="team init.creates tasks.json with empty tasks array" time="0.3419" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="creates protocol.md from template" name="team init.creates protocol.md from template" time="0.3323" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="pre-creates mailbox/lead.inbox" name="team init.pre-creates mailbox/lead.inbox" time="0.3184" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="fails gracefully if team already exists" name="team init.fails gracefully if team already exists" time="0.3577" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="stores created timestamp in manifest" name="team init.stores created timestamp in manifest" time="0.3503" asserts="0" success="True" result="Success" executed="True" />
             </results>
           </test-suite>
-          <test-suite type="TestFixture" name="team role" executed="True" result="Success" success="True" time="5.6524" asserts="0" description="team role">
+          <test-suite type="TestFixture" name="team role" executed="True" result="Success" success="True" time="5.0529" asserts="0" description="team role">
             <results>
-              <test-case description="adds role to manifest.json" name="team role.adds role to manifest.json" time="0.4658" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="creates role file at roles/{key}.md" name="team role.creates role file at roles/{key}.md" time="0.4493" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="role file contains correct YAML frontmatter" name="team role.role file contains correct YAML frontmatter" time="0.4421" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="uses default model when none specified" name="team role.uses default model when none specified" time="0.4641" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="stores role_file path in manifest" name="team role.stores role_file path in manifest" time="0.4689" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="fails if team doesn't exist" name="team role.fails if team doesn't exist" time="0.3758" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="adds role to manifest.json" name="team role.adds role to manifest.json" time="0.4129" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="creates role file at roles/{key}.md" name="team role.creates role file at roles/{key}.md" time="0.4" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="role file contains correct YAML frontmatter" name="team role.role file contains correct YAML frontmatter" time="0.3778" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="uses default model when none specified" name="team role.uses default model when none specified" time="0.3848" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="stores role_file path in manifest" name="team role.stores role_file path in manifest" time="0.3756" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="fails if team doesn't exist" name="team role.fails if team doesn't exist" time="0.3364" asserts="0" success="True" result="Success" executed="True" />
             </results>
           </test-suite>
-          <test-suite type="TestFixture" name="team task" executed="True" result="Success" success="True" time="9.9759" asserts="0" description="team task">
+          <test-suite type="TestFixture" name="team task" executed="True" result="Success" success="True" time="8.571" asserts="0" description="team task">
             <results>
-              <test-case description="adds task to tasks.json with correct fields" name="team task.adds task to tasks.json with correct fields" time="0.6516" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="sets status to pending when no deps" name="team task.sets status to pending when no deps" time="0.6142" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="sets status to blocked when deps specified" name="team task.sets status to blocked when deps specified" time="0.6937" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="sets deliverable to artifacts/{id}.md" name="team task.sets deliverable to artifacts/{id}.md" time="0.614" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="auto-adds deliverable to role's owns_files in manifest" name="team task.auto-adds deliverable to role's owns_files in manifest" time="0.6082" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="auto-adds deliverable to role file frontmatter" name="team task.auto-adds deliverable to role file frontmatter" time="0.6047" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="fails if team doesn't exist" name="team task.fails if team doesn't exist" time="0.513" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="adds task to tasks.json with correct fields" name="team task.adds task to tasks.json with correct fields" time="0.542" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="sets status to pending when no deps" name="team task.sets status to pending when no deps" time="0.4945" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="sets status to blocked when deps specified" name="team task.sets status to blocked when deps specified" time="0.5571" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="sets deliverable to artifacts/{id}.md" name="team task.sets deliverable to artifacts/{id}.md" time="0.4875" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="auto-adds deliverable to role's owns_files in manifest" name="team task.auto-adds deliverable to role's owns_files in manifest" time="0.4885" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="auto-adds deliverable to role file frontmatter" name="team task.auto-adds deliverable to role file frontmatter" time="0.4832" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="fails if team doesn't exist" name="team task.fails if team doesn't exist" time="0.4415" asserts="0" success="True" result="Success" executed="True" />
             </results>
           </test-suite>
-          <test-suite type="TestFixture" name="team status" executed="True" result="Success" success="True" time="13.6886" asserts="0" description="team status">
+          <test-suite type="TestFixture" name="team status" executed="True" result="Success" success="True" time="11.542" asserts="0" description="team status">
             <results>
-              <test-case description="shows team name" name="team status.shows team name" time="0.6696" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="shows scenario" name="team status.shows scenario" time="1.0428" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="shows roles" name="team status.shows roles" time="0.6747" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="shows tasks" name="team status.shows tasks" time="0.6773" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="shows progress count correctly" name="team status.shows progress count correctly" time="0.6234" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="shows team name" name="team status.shows team name" time="0.6016" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="shows scenario" name="team status.shows scenario" time="0.6174" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="shows roles" name="team status.shows roles" time="0.5994" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="shows tasks" name="team status.shows tasks" time="0.5633" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="shows progress count correctly" name="team status.shows progress count correctly" time="0.5675" asserts="0" success="True" result="Success" executed="True" />
             </results>
           </test-suite>
-          <test-suite type="TestFixture" name="team list" executed="True" result="Success" success="True" time="14.4011" asserts="0" description="team list">
+          <test-suite type="TestFixture" name="team list" executed="True" result="Success" success="True" time="12.1787" asserts="0" description="team list">
             <results>
-              <test-case description="shows no teams when empty" name="team list.shows no teams when empty" time="0.2152" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="lists teams in current directory" name="team list.lists teams in current directory" time="0.4728" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="shows no teams when empty" name="team list.shows no teams when empty" time="0.1957" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="lists teams in current directory" name="team list.lists teams in current directory" time="0.4194" asserts="0" success="True" result="Success" executed="True" />
             </results>
           </test-suite>
-          <test-suite type="TestFixture" name="team clean" executed="True" result="Success" success="True" time="15.1361" asserts="0" description="team clean">
+          <test-suite type="TestFixture" name="team clean" executed="True" result="Success" success="True" time="12.8317" asserts="0" description="team clean">
             <results>
-              <test-case description="removes team directory" name="team clean.removes team directory" time="0.508" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="shows message for non-existent team" name="team clean.shows message for non-existent team" time="0.2027" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="removes team directory" name="team clean.removes team directory" time="0.4508" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="shows message for non-existent team" name="team clean.shows message for non-existent team" time="0.1804" asserts="0" success="True" result="Success" executed="True" />
             </results>
           </test-suite>
-          <test-suite type="TestFixture" name="team unblock" executed="True" result="Success" success="True" time="17.0646" asserts="0" description="team unblock">
+          <test-suite type="TestFixture" name="team unblock" executed="True" result="Success" success="True" time="14.5246" asserts="0" description="team unblock">
             <results>
-              <test-case description="does NOT transition when deps aren't done" name="team unblock.does NOT transition when deps aren't done" time="0.5484" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="transitions blocked→pending when deps are done" name="team unblock.transitions blocked→pending when deps are done" time="0.685" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="writes notification to role's mailbox inbox" name="team unblock.writes notification to role's mailbox inbox" time="0.672" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="does NOT transition when deps aren't done" name="team unblock.does NOT transition when deps aren't done" time="0.4677" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="transitions blocked→pending when deps are done" name="team unblock.transitions blocked→pending when deps are done" time="0.5975" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="writes notification to role's mailbox inbox" name="team unblock.writes notification to role's mailbox inbox" time="0.6034" asserts="0" success="True" result="Success" executed="True" />
             </results>
           </test-suite>
-          <test-suite type="TestFixture" name="template init" executed="True" result="Success" success="True" time="23.9475" asserts="0" description="template init">
+          <test-suite type="TestFixture" name="template init" executed="True" result="Success" success="True" time="20.898" asserts="0" description="template init">
             <results>
-              <test-suite type="ParameterizedTest" name="template init.template '&lt;Name&gt;' creates &lt;ExpectedRoles&gt; roles and &lt;ExpectedTasks&gt; tasks" executed="True" result="Success" success="True" time="6.8598" asserts="0" description="template '&lt;Name&gt;' creates &lt;ExpectedRoles&gt; roles and &lt;ExpectedTasks&gt; tasks">
+              <test-suite type="ParameterizedTest" name="template init.template '&lt;Name&gt;' creates &lt;ExpectedRoles&gt; roles and &lt;ExpectedTasks&gt; tasks" executed="True" result="Success" success="True" time="6.3503" asserts="0" description="template '&lt;Name&gt;' creates &lt;ExpectedRoles&gt; roles and &lt;ExpectedTasks&gt; tasks">
                 <results>
-                  <test-case description="template 'feature' creates 3 roles and 4 tasks" name="template init.template 'feature' creates 3 roles and 4 tasks" time="0.87" asserts="0" success="True" result="Success" executed="True" />
-                  <test-case description="template 'bugfix' creates 3 roles and 3 tasks" name="template init.template 'bugfix' creates 3 roles and 3 tasks" time="0.8202" asserts="0" success="True" result="Success" executed="True" />
-                  <test-case description="template 'research' creates 4 roles and 4 tasks" name="template init.template 'research' creates 4 roles and 4 tasks" time="0.9294" asserts="0" success="True" result="Success" executed="True" />
-                  <test-case description="template 'refactor' creates 4 roles and 4 tasks" name="template init.template 'refactor' creates 4 roles and 4 tasks" time="0.9314" asserts="0" success="True" result="Success" executed="True" />
-                  <test-case description="template 'fullstack' creates 4 roles and 4 tasks" name="template init.template 'fullstack' creates 4 roles and 4 tasks" time="0.8762" asserts="0" success="True" result="Success" executed="True" />
-                  <test-case description="template 'sprint' creates 5 roles and 5 tasks" name="template init.template 'sprint' creates 5 roles and 5 tasks" time="0.892" asserts="0" success="True" result="Success" executed="True" />
-                  <test-case description="template 'ship' creates 3 roles and 3 tasks" name="template init.template 'ship' creates 3 roles and 3 tasks" time="0.7212" asserts="0" success="True" result="Success" executed="True" />
-                  <test-case description="template 'audit' creates 4 roles and 4 tasks" name="template init.template 'audit' creates 4 roles and 4 tasks" time="0.8194" asserts="0" success="True" result="Success" executed="True" />
+                  <test-case description="template 'feature' creates 3 roles and 4 tasks" name="template init.template 'feature' creates 3 roles and 4 tasks" time="0.7684" asserts="0" success="True" result="Success" executed="True" />
+                  <test-case description="template 'bugfix' creates 3 roles and 3 tasks" name="template init.template 'bugfix' creates 3 roles and 3 tasks" time="0.7255" asserts="0" success="True" result="Success" executed="True" />
+                  <test-case description="template 'research' creates 4 roles and 4 tasks" name="template init.template 'research' creates 4 roles and 4 tasks" time="0.7938" asserts="0" success="True" result="Success" executed="True" />
+                  <test-case description="template 'refactor' creates 4 roles and 4 tasks" name="template init.template 'refactor' creates 4 roles and 4 tasks" time="0.7978" asserts="0" success="True" result="Success" executed="True" />
+                  <test-case description="template 'fullstack' creates 4 roles and 4 tasks" name="template init.template 'fullstack' creates 4 roles and 4 tasks" time="0.7963" asserts="0" success="True" result="Success" executed="True" />
+                  <test-case description="template 'sprint' creates 5 roles and 5 tasks" name="template init.template 'sprint' creates 5 roles and 5 tasks" time="0.9113" asserts="0" success="True" result="Success" executed="True" />
+                  <test-case description="template 'ship' creates 3 roles and 3 tasks" name="template init.template 'ship' creates 3 roles and 3 tasks" time="0.7086" asserts="0" success="True" result="Success" executed="True" />
+                  <test-case description="template 'audit' creates 4 roles and 4 tasks" name="template init.template 'audit' creates 4 roles and 4 tasks" time="0.8486" asserts="0" success="True" result="Success" executed="True" />
                 </results>
               </test-suite>
             </results>

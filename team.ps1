@@ -190,7 +190,7 @@ function Invoke-Init([string]$teamName, [string]$scenario, [string]$templateName
     # Protocol from template
     $templatePath = Join-Path $TemplatesDir "protocol.md"
     if (Test-Path $templatePath) {
-        $protocol = (Get-Content $templatePath -Raw -Encoding UTF8) -replace '\{team-name\}', $teamName
+        $protocol = (Get-Content $templatePath -Raw -Encoding UTF8) -replace '\{\{team-name\}\}', $teamName
         Set-Content (Join-Path $dir "protocol.md") $protocol -Encoding UTF8
     }
 
@@ -1111,8 +1111,9 @@ SCENARIO: $scenario
 $seedInfo
 
 RULES:
-- Explore the project quickly (file tree, README, package.json/pyproject.toml, key config files).
-- Spend max 2 minutes exploring. Be efficient.
+- Explore the project thoroughly. Use sub-agents (explore) to read multiple files in parallel.
+- Understand the codebase structure, dependencies, existing patterns, and test infrastructure.
+- Be thorough. Tokens are not a concern — a wrong assessment wastes more than a deep exploration costs.
 - Write your assessment as Markdown to the specified output file.
 - After writing, stop. Do not modify any project files.
 "@
