@@ -489,7 +489,7 @@ IMPORTANT: Begin by reading protocol.md now. Then read your role file, then task
         $launcherScript = @"
 Set-Location '$($projectDir -replace "'","''")'
 `$promptText = Get-Content '$($promptFile -replace "'","''")' -Raw
-copilot -i `$promptText --add-dir '$($teamDir -replace "'","''")'$modelFlag 2>&1 | Tee-Object -FilePath '$($logFile -replace "'","''")'
+copilot -i `$promptText --add-dir '$($teamDir -replace "'","''")' --yolo$modelFlag 2>&1 | Tee-Object -FilePath '$($logFile -replace "'","''")'
 "@
         $launcherFile = Join-Path $launchDir "launch-$key.ps1"
         Set-Content $launcherFile $launcherScript -Encoding UTF8
