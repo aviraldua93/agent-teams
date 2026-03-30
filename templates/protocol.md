@@ -69,7 +69,7 @@ You must maintain a heartbeat file at `heartbeat/{your-role-key}.json` so the te
 
 | Field | Type | Description |
 |---|---|---|
-| `status` | `"active" \| "idle" \| "blocked"` | Current agent state |
+| `status` | `"active" \| "idle" \| "blocked" \| "checkpointed"` | Current agent state |
 | `current_task` | `string \| null` | The `id` of the task being worked, or `null` if idle |
 | `last_active` | `string` (ISO 8601) | Timestamp of the last heartbeat update |
 
@@ -107,6 +107,86 @@ Your role file (`roles/{your-role-key}.md`) specifies which types are permitted.
 - If all retries fail: report to `mailbox/lead.inbox` that sub-agent failed. Ask lead for guidance.
 - **NEVER silently do the work yourself.** Your context window is precious. Absorbing IC work into a coordinator's context defeats the entire architecture. Report the failure, let the lead re-assign or split the task.
 
+## Review Feedback Loop
+
+If you are a **reviewer** role and find issues during review:
+
+1. Write your review deliverable with findings (as normal)
+2. For each BLOCKING or MEDIUM finding, create a fix task in tasks.json:
+   - id: "fix-{finding-number}" (e.g., "fix-1", "fix-2")
+   - title: concise description of what needs fixing
+   - assigned_to: the role that should fix it (usually the coder)
+   - depends_on: [] (no dependencies — the code already exists)
+   - status: "pending"
+3. Optionally create a "re-review" task assigned to yourself:
+   - id: "re-review"
+   - depends_on: all fix task ids
+   - status: "blocked"
+4. The orchestrator will detect pending tasks and run another wave automatically.
+
+### When NOT to create fix tasks:
+- LOW severity findings — mention in review, don't create tasks
+- Style/formatting issues — not worth a wave
+- If all findings are LOW → mark your review task done, no loop needed
+
+### Max iterations:
+The orchestrator limits waves. If after 3 review cycles issues persist, the team is done. Remaining findings are documented in the review artifact.
+
+## Context Checkpoints
+
+If you are running low on context (you notice your responses getting shorter, you're forgetting earlier details, or you've been working for a long time), create a checkpoint:
+
+### How to checkpoint:
+
+1. Write a checkpoint file to `artifacts/checkpoints/{your-role-key}-checkpoint-{N}.json`:
+   ```json
+   {
+     "role": "{your-role-key}",
+     "checkpoint_number": 1,
+     "timestamp": "{iso8601}",
+     "current_task": "{task-id}",
+     "task_status": "partial",
+     "completed_work": [
+       "Created src/api/routes.js with 3 endpoints",
+       "Updated package.json with express dependency"
+     ],
+     "remaining_work": [
+       "Add error handling middleware",
+       "Write integration tests"
+     ],
+     "key_decisions": [
+       "Chose Express over Fastify for simplicity",
+       "Using ESM imports throughout"
+     ],
+     "files_modified": ["src/api/routes.js", "package.json"],
+     "notes": "Any context a fresh session needs to continue"
+   }
+   ```
+
+2. Update your heartbeat to `{"status": "checkpointed", ...}`
+3. Message `mailbox/lead.inbox`:
+   ```
+   [FROM: {role}] [TIME: {iso8601}]
+   Context checkpoint #{N} written. Task {id} partially complete.
+   Remaining: {summary of remaining work}. Ready for handoff.
+   ---
+   ```
+4. Exit your session (type /exit or let -p complete)
+
+### How handoff works (manual):
+
+The orchestrator does not yet auto-detect checkpoints. When you checkpoint:
+1. The lead session should notice the "checkpointed" heartbeat via `team status`
+2. The lead runs `team launch <name> <role>` to relaunch the role
+3. The fresh session reads the checkpoint file from its launch prompt
+4. Automated checkpoint detection is planned for a future version
+
+### Rules:
+- Checkpoint EARLY — don't wait until you're confused
+- Include ALL key decisions and rationale
+- List specific files modified so the next session can verify
+- The checkpoint file IS the handoff — make it complete enough for a stranger to continue
+
 ## Message Format
 
 When writing to any `mailbox/*.inbox` file, use this format:
@@ -143,9 +223,97 @@ If every task assigned to you has status `blocked`, you were launched early. Do 
 Each role owns specific files (listed in its role file and manifest). Never write to a file owned by another role. If you need input from another role's output, READ their artifact — don't modify it. Write your own artifact instead.
 
 The only shared-write files are:
-- `tasks.json` — update only your own task statuses
+- `tasks.json` — update your own task statuses. Reviewers may also add new fix tasks (see Review Feedback Loop).
 - `mailbox/*.inbox` — append-only writes to the appropriate inbox
 - `heartbeat/{your-role-key}.json` — only your own heartbeat file
+
+## File Locking
+
+When editing PROJECT files (not team coordination files), you MUST follow the locking protocol to prevent concurrent write conflicts.
+
+### Which files need locking?
+- **Project source files** (src/, tests/, etc.) — MUST lock before editing
+- **Team coordination files** (tasks.json, heartbeat/, mailbox/) — NO lock needed (protocol handles these)
+- **Your own artifacts** (artifacts/{your-deliverable}.md) — NO lock needed (you own them)
+
+### How to lock
+
+Before editing any project source file:
+
+1. **Check**: Does `locks/{path-with-dashes}.lock` exist?
+   - Path encoding: replace `/` and `\` with `--` (e.g., `src/api.js` → `src--api.js.lock`)
+2. **If unlocked**: Create the lock file:
+   ```json
+   {"agent": "{your-role-key}", "file": "{original-path}", "acquired": "{iso8601}", "ttl_seconds": 300}
+   ```
+3. **Edit the file**
+4. **Release**: Delete the lock file when done
+
+### If the file is locked by another agent:
+1. Wait 15 seconds, check again
+2. Retry up to 4 times (1 minute total)
+3. If still locked after retries: write to `mailbox/lead.inbox` asking for help
+4. If lock is older than its TTL (default 300s): the owning agent likely crashed — steal the lock (overwrite it with your info) and log a warning to mailbox
+
+### Rules:
+- NEVER edit a project file without locking it first
+- ALWAYS release locks when done (delete the lock file)
+- Lock files go in the `locks/` directory, NOT next to the source file
+- TTL default is 300 seconds (5 minutes) — if your edit takes longer, update the lock's `acquired` timestamp
+
+## Cross-Boundary Requests
+
+When you need a change in files you DON'T own, use an interface request — don't edit the file yourself.
+
+### How to request:
+
+1. Create a JSON file in `artifacts/requests/`:
+   - Filename: `{from-role}--to--{to-role}--{description}.json`
+   - Example: `frontend--to--backend--add-users-endpoint.json`
+
+2. Format:
+   ```json
+   {
+     "from": "frontend",
+     "to": "backend",
+     "type": "new-endpoint",
+     "priority": "blocking",
+     "description": "Need GET /api/users/:id for the profile page",
+     "schema": {
+       "method": "GET",
+       "path": "/api/users/:id",
+       "response": { "id": "string", "name": "string", "email": "string" }
+     }
+   }
+   ```
+
+3. Also append a notification to `mailbox/{to-role}.inbox`:
+   ```
+   [FROM: {your-role}] [TIME: {iso8601}]
+   Interface request: {description}. See artifacts/requests/{filename}.json
+   ---
+   ```
+
+### How to fulfill:
+
+1. Poll `artifacts/requests/` for files addressed to you (`--to--{your-role}--`)
+2. Read the request
+3. Implement the change in your owned files
+4. Write a response file: `{original-filename}.response.json`
+   ```json
+   {
+     "status": "fulfilled",
+     "details": "Added GET /api/users/:id to src/api/routes.js",
+     "fulfilled_at": "{iso8601}"
+   }
+   ```
+
+### Rules:
+- Requests are the ONLY way to get cross-boundary changes
+- You may CREATE new files freely (new files have no owner conflict)
+- You may READ any file in the project
+- You may only EDIT files listed in your `owns_files`
+- If you need to edit a file you don't own → write an interface request
 
 ## Logging
 

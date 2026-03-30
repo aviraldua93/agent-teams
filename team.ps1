@@ -224,9 +224,11 @@ function Invoke-Init([string]$teamName, [string]$scenario, [string]$templateName
     }
 
     # Scaffold directories (v0.2: added roles/, heartbeat/, logs/)
-    foreach ($sub in @("artifacts", "mailbox", ".launch", "roles", "heartbeat", "logs")) {
+    foreach ($sub in @("artifacts", "mailbox", "roles", "heartbeat", "logs", ".launch", "locks")) {
         New-Item -ItemType Directory -Force -Path (Join-Path $dir $sub) | Out-Null
     }
+    New-Item -ItemType Directory -Force -Path (Join-Path $dir "artifacts\requests") | Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $dir "artifacts\checkpoints") | Out-Null
 
     # Pre-create lead inbox so agents can append from the start
     Set-Content (Join-Path $dir "mailbox\lead.inbox") "" -Encoding UTF8
@@ -389,8 +391,12 @@ $readsYaml
 
 You are the $roleName. $description
 
-Follow the team protocol (protocol.md) and coordinate via the mailbox system.
-Write your deliverables to the artifacts/ directory.
+1. Follow the team protocol (``protocol.md``). Read it first if you haven't already.
+2. Read ``tasks.json`` to find tasks where ``assigned_to`` matches your role key (``$roleKey``).
+3. Work through your tasks in dependency order. Write deliverables to the files listed in ``owns_files`` above.
+4. Follow the deliverable format specified in your role file template. Every deliverable must include: Summary, Details/Files Changed, and Acceptance Criteria Status.
+5. Update your heartbeat (``heartbeat/$roleKey.json``) after claiming each task and when going idle.
+6. Send completion messages to ``mailbox/lead.inbox`` as each task finishes.
 "@
 
     $roleFilePath = Join-Path $rolesDir "$roleKey.md"
@@ -732,6 +738,12 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
     Write-Host "  `u{1F680} Orchestrating team '$teamName'" -ForegroundColor Cyan
     Write-Host ""
 
+    $orchestratorStart = Get-Date
+    $waveSummary = @()
+    $totalSpawned = 0
+    $totalRecoveries = 0
+    $totalDeadAgents = 0
+
     $waveNum = 0
     while ($true) {
         $waveNum++
@@ -758,6 +770,8 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
 
         Write-Host "  `u{2500}`u{2500} Wave $waveNum `u{2500}`u{2500}" -ForegroundColor Cyan
         Write-OrchestratorLog $teamDir "Wave $waveNum starting with roles: $($pendingRoles -join ', ')"
+
+        $waveStart = Get-Date
 
         # Spawn this wave's roles
         $doneFiles = @{}
@@ -814,6 +828,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
 
             Write-Host "    `u{1F7E2} $($roleProp.Value.name) ($roleKey)" -ForegroundColor Green
             Write-OrchestratorLog $teamDir "Spawning $roleKey (attempt $attempts)"
+            $totalSpawned++
             Start-Sleep -Milliseconds 800
         }
 
@@ -849,6 +864,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
                     Write-Host "    🔧 $roleKey — recovered (tasks done, .done signal was missing)" -ForegroundColor Yellow
                     Write-OrchestratorLog $teamDir "Role $roleKey auto-recovered (tasks done, .done missing)"
                     Append-Event $teamDir "auto_recovered" "" $roleKey "tasks done, .done missing"
+                    $totalRecoveries++
                     continue
                 }
 
@@ -898,6 +914,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
             # If all remaining agents are dead, auto-retry them
             if ($deadAgents.Count -eq $remaining.Count -and $remaining.Count -gt 0 -and $elapsed -gt 120) {
                 foreach ($da in $deadAgents) {
+                    $totalDeadAgents++
                     # Check poison pill (max retries)
                     $attemptsFile = Join-Path $launchDir "$da.attempts"
                     $attempts = 0
@@ -938,6 +955,8 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
                         New-RoleLauncher -TeamName $teamName -RoleKey $da -Role $roleProp.Value `
                             -ProjectDir $projectDir -TeamDir $teamDir -DoneFile $doneFiles[$da]
                         Write-Host "    🟢 $da relaunched" -ForegroundColor Green
+                        $totalSpawned++
+                        $totalRecoveries++
                     }
                 }
                 
@@ -977,6 +996,15 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
         Write-Host "    `u{2705} Wave $waveNum complete" -ForegroundColor Green
         Write-OrchestratorLog $teamDir "Wave $waveNum complete"
         Append-Event $teamDir "wave_complete" "" "" "wave=$waveNum"
+
+        $waveEnd = Get-Date
+        $waveDuration = [math]::Round(($waveEnd - $waveStart).TotalSeconds)
+        $waveSummary += [PSCustomObject]@{
+            Wave = $waveNum
+            Roles = ($pendingRoles -join ", ")
+            Duration = $waveDuration
+        }
+
         Write-Host ""
 
         # Unblock next wave
@@ -986,6 +1014,38 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
     # Final status
     Write-Host ""
     Invoke-Status $teamName
+
+    # ── Execution Summary ─────────────────────────────────────────────────
+    $totalTime = [math]::Round(((Get-Date) - $orchestratorStart).TotalSeconds)
+    $totalMin = [math]::Floor($totalTime / 60)
+    $totalSec = $totalTime % 60
+
+    Write-Host ""
+    Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "  ║  EXECUTION SUMMARY                           ║" -ForegroundColor Cyan
+    Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Total time: ${totalMin}m ${totalSec}s" -ForegroundColor White
+    Write-Host "  Waves: $($waveSummary.Count)" -ForegroundColor White
+    Write-Host ""
+    foreach ($ws in $waveSummary) {
+        Write-Host "  Wave $($ws.Wave): $($ws.Roles) ($($ws.Duration)s)" -ForegroundColor Gray
+    }
+    Write-Host ""
+
+    $tasksObj = Get-Tasks $teamName
+    $totalTasks = @($tasksObj.tasks).Count
+    $doneTasks = @($tasksObj.tasks | Where-Object { $_.status -eq "done" }).Count
+    $failedTasks = @($tasksObj.tasks | Where-Object { $_.status -eq "failed" }).Count
+
+    Write-Host "  Agents spawned: $totalSpawned" -ForegroundColor White
+    Write-Host "  Tasks completed: $doneTasks/$totalTasks" -ForegroundColor $(if ($doneTasks -eq $totalTasks) { "Green" } else { "Yellow" })
+    if ($failedTasks -gt 0) { Write-Host "  Failed tasks: $failedTasks" -ForegroundColor Red }
+    if ($totalRecoveries -gt 0) { Write-Host "  Auto-recoveries: $totalRecoveries" -ForegroundColor Yellow }
+    if ($totalDeadAgents -gt 0) { Write-Host "  Dead agents: $totalDeadAgents" -ForegroundColor Red }
+    Write-Host ""
+
+    Write-OrchestratorLog $teamDir "Execution complete: ${totalMin}m ${totalSec}s, $($waveSummary.Count) waves, $doneTasks/$totalTasks tasks"
 }
 
 
@@ -1200,12 +1260,12 @@ function Invoke-Clean([string]$teamName) {
 function Show-Help {
     Write-Host ""
     Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║  Agent Teams for GitHub Copilot CLI   v0.5  ║" -ForegroundColor Cyan
+    Write-Host "  ║  Agent Teams for GitHub Copilot CLI   v0.6  ║" -ForegroundColor Cyan
     Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  COMMANDS" -ForegroundColor Yellow
     Write-Host "    init   <name> <scenario> [template]        Create a new team" -ForegroundColor White
-    Write-Host "           templates: feature, fullstack, sprint, bugfix, refactor, research, ship, audit" -ForegroundColor Gray
+    Write-Host "           templates: feature, fullstack, sprint, bugfix, refactor, research, ship, audit, data-science, ml-experiment, data-pipeline, harness, doc-review" -ForegroundColor Gray
     Write-Host "    role   <name> <key> <description> [model]  Add a role (generates role file)" -ForegroundColor White
     Write-Host "    task   <name> <id> <title> <role> [deps]   Add a task" -ForegroundColor White
     Write-Host "    launch <name>                              Orchestrate: spawn waves, wait, unblock, repeat" -ForegroundColor White
@@ -1900,14 +1960,24 @@ function Invoke-Unblock([string]$teamName) {
     }
 
     $now = Get-Date -Format "o"
+    $leadInboxPath = Join-Path $mailboxDir "lead.inbox"
     foreach ($task in $unblocked) {
-        $inboxPath = Join-Path $mailboxDir "$($task.assigned_to).inbox"
-        $msg = @"
+        # Notify lead
+        $leadMsg = @"
+[FROM: system] [TIME: $now]
+Task "$($task.id)" unblocked and assigned to $($task.assigned_to). Dependencies resolved.
+---
+"@
+        Add-Content $leadInboxPath $leadMsg -Encoding UTF8
+
+        # Notify assigned agent
+        $agentInboxPath = Join-Path $mailboxDir "$($task.assigned_to).inbox"
+        $agentMsg = @"
 [FROM: lead] [TIME: $now]
 Your task "$($task.id)" is now unblocked. Dependencies complete. Begin work.
 ---
 "@
-        Add-Content $inboxPath $msg -Encoding UTF8
+        Add-Content $agentInboxPath $agentMsg -Encoding UTF8
         Append-Event $teamDir "task_unblocked" $task.id $task.assigned_to ""
         Write-OrchestratorLog $teamDir "Unblocked task $($task.id) for $($task.assigned_to)"
     }

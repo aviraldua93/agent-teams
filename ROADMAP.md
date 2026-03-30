@@ -2,7 +2,7 @@
 
 ## Where We Are
 
-**v0.5** (current) — Working CLI with wave orchestration, 11 templates, 3-probe failure detection, feasibility assessment, 43 unit tests, CI pipeline. Three successful E2E runs (calculator ×2, iris ML).
+**v0.5** (current) — Working CLI with wave orchestration, 13 templates, 3-probe failure detection, feasibility assessment, 43 unit tests, CI pipeline. Three successful E2E runs (calculator ×2, iris ML).
 
 **15/22 issues closed.** Core infrastructure is solid. Missing: feedback loops, structured grading, context handoffs, cross-platform.
 
@@ -34,9 +34,12 @@
 | 2 | Structured grading criteria with hard thresholds in tasks.json | NEW | Medium |
 | 3 | Max iteration limit per loop (default 3) to prevent infinite cycles | — | Small |
 | 4 | Pivot-or-refine decision — coder prompted to iterate or try different approach | NEW | Small |
-| 5 | `harness` template — planner → generator ↔ evaluator (loop with grading) | NEW | Medium |
 
-**Exit criteria:** `team init my-app "Build X" harness` produces iteratively-refined output. Evaluator grades against criteria, generator fixes until thresholds pass.
+**Completed (moved from planned):**
+- ✅ `harness` template — planner → generator ↔ evaluator (loop with grading)
+- ✅ `doc-review` template — 4 parallel reviews → synthesize
+
+**Exit criteria:** Review feedback loop works end-to-end. Evaluator grades against criteria, generator fixes until thresholds pass.
 
 ---
 

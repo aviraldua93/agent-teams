@@ -31,6 +31,7 @@ Describe "team init" {
         ".agent-teams\test-team\heartbeat" | Should -Exist
         ".agent-teams\test-team\logs" | Should -Exist
         ".agent-teams\test-team\.launch" | Should -Exist
+        ".agent-teams\test-team\locks" | Should -Exist
     }
 
     It "stores correct manifest data" {
@@ -330,6 +331,7 @@ Describe "template init" {
         @{ Name = "ml-experiment";  ExpectedRoles = 4; ExpectedTasks = 4 }
         @{ Name = "data-pipeline";  ExpectedRoles = 4; ExpectedTasks = 4 }
         @{ Name = "doc-review";     ExpectedRoles = 5; ExpectedTasks = 5 }
+        @{ Name = "harness";        ExpectedRoles = 3; ExpectedTasks = 3 }
     )
 
     It "template '<Name>' creates <ExpectedRoles> roles and <ExpectedTasks> tasks" -TestCases $templateCases {
