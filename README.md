@@ -20,7 +20,7 @@ A single Copilot CLI session works great for small tasks. But for larger work �
 ```powershell
 git clone https://github.com/aviraldua93/agent-teams.git
 cd agent-teams
-.\install.ps1    # copies to ~/.copilot/teams/, adds `team` to your profile
+.\install.ps1    # copies to ~/.agent-teams/, adds `team` to your profile
 ```
 
 Then restart your terminal (or `. $PROFILE`).
@@ -53,7 +53,7 @@ team status calculator
 ### Architecture
 
 ```
-~/.copilot/teams/{name}/
+.agent-teams/{name}/
 ├── manifest.json        # Team config: roles, project dir, scenario
 ├── protocol.md          # Rules every agent reads on startup
 ├── tasks.json           # Shared task board with dependencies

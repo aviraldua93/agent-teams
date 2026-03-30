@@ -3,7 +3,7 @@
 # install.ps1 — Install Agent Teams for GitHub Copilot CLI
 #
 # What this does:
-#   1. Copies team.ps1 + templates to ~/.copilot/teams/
+#   1. Copies team.ps1 + templates to ~/.agent-teams/
 #   2. Adds the `team` function to your PowerShell profile
 #
 # Usage:
@@ -11,13 +11,13 @@
 #
 # To uninstall:
 #   Remove the `team` function line from your PowerShell profile
-#   Remove ~/.copilot/teams/ directory
+#   Remove ~/.agent-teams/ directory
 # ============================================================================
 
 $ErrorActionPreference = "Stop"
 
 $SourceDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$TargetDir = Join-Path $env:USERPROFILE ".copilot\teams"
+$TargetDir = Join-Path $env:USERPROFILE ".agent-teams"
 $TemplatesTarget = Join-Path $TargetDir "templates"
 
 Write-Host ""
@@ -38,7 +38,7 @@ Write-Host "     ✅ templates/role.md" -ForegroundColor Green
 
 # 2. Add to PowerShell profile
 $profilePath = $PROFILE.CurrentUserAllHosts
-$aliasLine = 'function team { & "$env:USERPROFILE\.copilot\teams\team.ps1" @args }'
+$aliasLine = 'function team { & "$env:USERPROFILE\.agent-teams\team.ps1" @args }'
 $marker = "# Agent Teams CLI"
 
 if (Test-Path $profilePath) {
@@ -49,7 +49,9 @@ if (Test-Path $profilePath) {
 }
 
 if ($profileContent -match "Agent Teams CLI") {
-    Write-Host "  ⏭️  Profile alias already exists — skipping" -ForegroundColor Yellow
+    Write-Host "  ⏭️  Profile alias already exists — updating" -ForegroundColor Yellow
+    $profileContent = $profileContent -replace '(?m)^# Agent Teams CLI\r?\nfunction team \{[^\}]+\}', "$marker`n$aliasLine"
+    Set-Content $profilePath $profileContent -Encoding UTF8
 } else {
     $addition = "`n$marker`n$aliasLine`n"
     Add-Content $profilePath $addition -Encoding UTF8

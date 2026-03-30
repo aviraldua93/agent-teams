@@ -15,13 +15,24 @@
 # ============================================================================
 
 $ErrorActionPreference = "Stop"
-$TeamsRoot = Join-Path $env:USERPROFILE ".copilot\teams"
-$TemplatesDir = Join-Path $TeamsRoot "templates"
+$ToolRoot = Join-Path $env:USERPROFILE ".agent-teams"
+$TemplatesDir = Join-Path $ToolRoot "templates"
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
 function Get-TeamDir([string]$teamName) {
-    return Join-Path $TeamsRoot $teamName
+    # Team data is PROJECT-LOCAL: .agent-teams/{name}/ in the current directory
+    return Join-Path (Get-Location).Path ".agent-teams\$teamName"
+}
+
+function Get-AllTeamDirs {
+    # Scan .agent-teams/ in current directory for team subdirs
+    $base = Join-Path (Get-Location).Path ".agent-teams"
+    if (Test-Path $base) {
+        return Get-ChildItem $base -Directory -ErrorAction SilentlyContinue |
+            Where-Object { Test-Path (Join-Path $_.FullName "manifest.json") }
+    }
+    return @()
 }
 
 function Assert-TeamExists([string]$teamName) {
@@ -649,8 +660,7 @@ function Invoke-Status([string]$teamName) {
 function Invoke-List {
     Write-Host ""
     Write-Host "  TEAMS" -ForegroundColor Yellow
-    $teams = Get-ChildItem $TeamsRoot -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -ne "templates" -and $_.Name -ne "bin" }
+    $teams = Get-AllTeamDirs
     if ($teams) {
         foreach ($t in $teams) {
             $manifestPath = Join-Path $t.FullName "manifest.json"
@@ -739,7 +749,7 @@ function Show-Help {
     Write-Host "    - deps are comma-separated task IDs: dep1,dep2" -ForegroundColor Gray
     Write-Host "    - model is optional (e.g., claude-sonnet-4, gpt-5.2)" -ForegroundColor Gray
     Write-Host "    - launch opens new terminal tabs in current window" -ForegroundColor Gray
-    Write-Host "    - agents coordinate via files in ~/.copilot/teams/<name>/" -ForegroundColor Gray
+    Write-Host "    - agents coordinate via files in .agent-teams/<name>/" -ForegroundColor Gray
     Write-Host "    - edit roles/{key}.md to customize agent instructions" -ForegroundColor Gray
     Write-Host ""
 }
