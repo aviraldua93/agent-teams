@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 # ============================================================================
 # team.ps1 — Agent Teams for GitHub Copilot CLI
-# Version: 0.2.0
+# Version: 0.3.0
 #
 # Coordinates multiple Copilot CLI sessions as specialized agents.
 # Each agent runs in its own terminal tab with a role-specific prompt,
@@ -38,7 +38,9 @@ function Read-Json([string]$path) {
 }
 
 function Write-Json([string]$path, $obj) {
-    $obj | ConvertTo-Json -Depth 10 | Set-Content $path -Encoding UTF8
+    $tmp = "$path.tmp"
+    $obj | ConvertTo-Json -Depth 10 | Set-Content $tmp -Encoding UTF8
+    Move-Item $tmp $path -Force
 }
 
 function Get-Manifest([string]$teamName) {
@@ -693,7 +695,7 @@ function Invoke-Clean([string]$teamName) {
 function Show-Help {
     Write-Host ""
     Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║  Agent Teams for GitHub Copilot CLI   v0.2  ║" -ForegroundColor Cyan
+    Write-Host "  ║  Agent Teams for GitHub Copilot CLI   v0.3  ║" -ForegroundColor Cyan
     Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  COMMANDS" -ForegroundColor Yellow
@@ -702,6 +704,7 @@ function Show-Help {
     Write-Host "    task   <name> <id> <title> <role> [deps]   Add a task" -ForegroundColor White
     Write-Host "    launch <name> [role]                       Spawn agent tabs (with logs)" -ForegroundColor White
     Write-Host "    status <name>                              Dashboard with heartbeats" -ForegroundColor White
+    Write-Host "    watch  <name>                              Live dashboard (refreshes 3s)" -ForegroundColor White
     Write-Host "    list                                       List all teams" -ForegroundColor White
     Write-Host "    clean  <name>                              Remove a team" -ForegroundColor White
     Write-Host ""
@@ -716,7 +719,9 @@ function Show-Help {
     Write-Host "    team launch calculator" -ForegroundColor Gray
     Write-Host "    team status calculator" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  v0.2 FEATURES" -ForegroundColor Yellow
+    Write-Host "  v0.3 FEATURES" -ForegroundColor Yellow
+    Write-Host "    - Atomic JSON writes via tmp+rename (crash-safe)" -ForegroundColor Gray
+    Write-Host "    - Live dashboard: team watch <name>" -ForegroundColor Gray
     Write-Host "    - Role files: roles/{key}.md with YAML frontmatter" -ForegroundColor Gray
     Write-Host "    - Heartbeat:  heartbeat/{key}.json for liveness monitoring" -ForegroundColor Gray
     Write-Host "    - Logs:       logs/{key}.log for session output" -ForegroundColor Gray
@@ -739,6 +744,140 @@ function Show-Help {
     Write-Host ""
 }
 
+# ── watch ────────────────────────────────────────────────────────────────────
+# Live dashboard that refreshes every 3 seconds. Shows heartbeats, tasks,
+# recent log lines, and lead inbox. Press Ctrl+C to stop.
+function Invoke-Watch([string]$teamName) {
+    if (-not $teamName) {
+        Write-Host "  Usage: team watch <name>" -ForegroundColor Yellow
+        return
+    }
+    Assert-TeamExists $teamName
+
+    $teamDir = Get-TeamDir $teamName
+
+    while ($true) {
+        Clear-Host
+        $manifest = Get-Manifest $teamName
+        $tasksObj = Get-Tasks $teamName
+
+        $now = Get-Date -Format "HH:mm:ss"
+        Write-Host ""
+        Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
+        Write-Host "  ║  WATCH: $($teamName.PadRight(30)) $now ║" -ForegroundColor Cyan
+        Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
+        Write-Host ""
+
+        # ── Progress bar ──────────────────────────────────────────────────
+        $totalCount = @($tasksObj.tasks).Count
+        $doneCount  = @($tasksObj.tasks | Where-Object { $_.status -eq "done" }).Count
+        $barWidth   = 30
+        $filled     = if ($totalCount -gt 0) { [math]::Floor($doneCount / $totalCount * $barWidth) } else { 0 }
+        $empty      = $barWidth - $filled
+        $bar        = ("█" * $filled) + ("░" * $empty)
+        $pct        = if ($totalCount -gt 0) { [math]::Floor($doneCount / $totalCount * 100) } else { 0 }
+        Write-Host "  [$bar] $doneCount/$totalCount ($pct%)" -ForegroundColor $(if ($doneCount -eq $totalCount -and $totalCount -gt 0) { "Green" } else { "Yellow" })
+        Write-Host ""
+
+        # ── Heartbeats ────────────────────────────────────────────────────
+        Write-Host "  HEARTBEATS" -ForegroundColor Yellow
+        $heartbeatDir = Join-Path $teamDir "heartbeat"
+        foreach ($prop in $manifest.roles.PSObject.Properties) {
+            $key    = $prop.Name
+            $hbPath = Join-Path $heartbeatDir "$key.json"
+            if (Test-Path $hbPath) {
+                try {
+                    $hb = Read-Json $hbPath
+                    $timeAgo = Format-TimeAgo $hb.last_active
+                    $taskLabel = if ($hb.current_task) { " task:$($hb.current_task)" } else { "" }
+                    $icon = switch ($hb.status) {
+                        "active" { "🟢" }
+                        "idle"   { "🟡" }
+                        "done"   { "✅" }
+                        default  { "⚪" }
+                    }
+                    $color = switch ($hb.status) {
+                        "active" { "Green" }
+                        "idle"   { "Yellow" }
+                        "done"   { "DarkGreen" }
+                        default  { "Gray" }
+                    }
+                    Write-Host "    $icon $key — $($hb.status)$taskLabel ($timeAgo)" -ForegroundColor $color
+                } catch {
+                    Write-Host "    🔴 $key — heartbeat unreadable" -ForegroundColor Red
+                }
+            } else {
+                Write-Host "    🔴 $key — no heartbeat" -ForegroundColor Red
+            }
+        }
+        Write-Host ""
+
+        # ── Task board ────────────────────────────────────────────────────
+        Write-Host "  TASKS" -ForegroundColor Yellow
+        foreach ($task in $tasksObj.tasks) {
+            $icon = switch ($task.status) {
+                "done"        { "`u{2705}" }
+                "in_progress" { "`u{1F504}" }
+                "blocked"     { "`u{1F6AB}" }
+                "pending"     { "`u{23F3}" }
+                default       { "`u{2753}" }
+            }
+            Write-Host "    $icon $($task.id) `u{2192} $($task.assigned_to) [$($task.status)]" -ForegroundColor White
+        }
+        Write-Host ""
+
+        # ── Recent logs ───────────────────────────────────────────────────
+        $logsDir = Join-Path $teamDir "logs"
+        $logFiles = Get-ChildItem $logsDir -File -Filter "*.log" -ErrorAction SilentlyContinue
+        if ($logFiles) {
+            Write-Host "  RECENT LOGS" -ForegroundColor Yellow
+            foreach ($lf in $logFiles) {
+                $agentName = [System.IO.Path]::GetFileNameWithoutExtension($lf.Name)
+                $lines = Get-Content $lf.FullName -Tail 5 -ErrorAction SilentlyContinue
+                if ($lines) {
+                    Write-Host "    ── $agentName ──" -ForegroundColor DarkCyan
+                    foreach ($line in $lines) {
+                        $trimmed = if ($line.Length -gt 80) { $line.Substring(0, 77) + "..." } else { $line }
+                        Write-Host "      $trimmed" -ForegroundColor DarkGray
+                    }
+                }
+            }
+            Write-Host ""
+        }
+
+        # ── Lead inbox (last 3 messages) ──────────────────────────────────
+        $inboxPath = Join-Path $teamDir "mailbox\lead.inbox"
+        if (Test-Path $inboxPath) {
+            Write-Host "  LEAD INBOX (recent)" -ForegroundColor Yellow
+            $inboxLines = Get-Content $inboxPath -Encoding UTF8 -ErrorAction SilentlyContinue
+            if ($inboxLines) {
+                # Find message boundaries (lines starting with [FROM:) and take last 3 messages
+                $msgStarts = @()
+                for ($i = 0; $i -lt $inboxLines.Count; $i++) {
+                    if ($inboxLines[$i] -match '^\[FROM:') { $msgStarts += $i }
+                }
+                $startIdx = if ($msgStarts.Count -gt 3) { $msgStarts[$msgStarts.Count - 3] } elseif ($msgStarts.Count -gt 0) { $msgStarts[0] } else { 0 }
+                for ($i = $startIdx; $i -lt $inboxLines.Count; $i++) {
+                    $line = $inboxLines[$i]
+                    if ($line -match '^\[FROM:') {
+                        Write-Host "    $line" -ForegroundColor Cyan
+                    } elseif ($line -eq '---') {
+                        Write-Host "    $line" -ForegroundColor DarkGray
+                    } else {
+                        Write-Host "    $line" -ForegroundColor White
+                    }
+                }
+            } else {
+                Write-Host "    (empty)" -ForegroundColor DarkGray
+            }
+            Write-Host ""
+        }
+
+        Write-Host "  Press Ctrl+C to stop" -ForegroundColor DarkGray
+        Start-Sleep 3
+    }
+}
+
 # ── Main Dispatch ───────────────────────────────────────────────────────────
 # IMPORTANT: Use $args[N] directly — do NOT assign to intermediate variable.
 # PowerShell has a scalar coercion bug when slicing single-element arrays.
@@ -749,6 +888,7 @@ switch ($args[0]) {
     "task"   { Invoke-Task   $args[1] $args[2] $args[3] $args[4] $args[5] }
     "launch" { Invoke-Launch $args[1] $args[2] }
     "status" { Invoke-Status $args[1] }
+    "watch"  { Invoke-Watch  $args[1] }
     "list"   { Invoke-List }
     "clean"  { Invoke-Clean  $args[1] }
     default  { Show-Help }
