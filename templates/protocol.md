@@ -111,6 +111,16 @@ Messages are append-only. Never delete or edit existing messages.
 | `in_progress` | Actively being worked by the assigned role |
 | `done` | Deliverable written and complete |
 
+## If All Your Tasks Are Blocked
+
+If every task assigned to you has status `blocked`, you were launched early. Do this:
+
+1. Set your heartbeat to `blocked` with `current_task: null`.
+2. Poll `tasks.json` every 30 seconds to check if any deps have been resolved.
+3. Also check `mailbox/{your-role-key}.inbox` for unblock notifications from the lead.
+4. When a task becomes `pending`, claim it immediately and begin work.
+5. If after 5 minutes nothing unblocks, send a message to `mailbox/lead.inbox` asking for status.
+
 ## File Conflict Prevention
 
 Each role owns specific files (listed in its role file and manifest). Never write to a file owned by another role. If you need input from another role's output, READ their artifact — don't modify it. Write your own artifact instead.

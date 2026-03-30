@@ -442,11 +442,41 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
         }
     }
 
+    # ── Check which roles have pending work vs all-blocked ────────────────
+    $tasksObj = Get-Tasks $teamName
+    $skippedRoles = @()
+    $readyRoles = @()
+
+    foreach ($roleProp in $roles) {
+        $key = $roleProp.Name
+        $roleTasks = @($tasksObj.tasks | Where-Object { $_.assigned_to -eq $key })
+        $pendingTasks = @($roleTasks | Where-Object { $_.status -eq "pending" })
+
+        if ($roleTasks.Count -gt 0 -and $pendingTasks.Count -eq 0) {
+            # All tasks are blocked (or done/in_progress with none pending)
+            $blockedTasks = @($roleTasks | Where-Object { $_.status -eq "blocked" })
+            if ($blockedTasks.Count -gt 0) {
+                $waitingOn = @()
+                foreach ($bt in $blockedTasks) {
+                    $waitingOn += @($bt.depends_on)
+                }
+                $waitingOn = @($waitingOn | Select-Object -Unique)
+                $skippedRoles += [PSCustomObject]@{
+                    Key       = $key
+                    Role      = $roleProp.Value
+                    WaitingOn = $waitingOn
+                }
+                continue
+            }
+        }
+        $readyRoles += $roleProp
+    }
+
     Write-Host ""
     Write-Host "  🚀 Launching team '$teamName'" -ForegroundColor Cyan
     Write-Host ""
 
-    foreach ($roleProp in $roles) {
+    foreach ($roleProp in $readyRoles) {
         $key  = $roleProp.Name
         $role = $roleProp.Value
 
@@ -547,6 +577,19 @@ Stop-Transcript
 
         Write-Host "  🟢 $($role.name) ($key)" -ForegroundColor Green
         Start-Sleep -Milliseconds 800  # stagger to avoid terminal race
+    }
+
+    # Show skipped (blocked) roles
+    if ($skippedRoles.Count -gt 0) {
+        Write-Host ""
+        Write-Host "  Skipped (blocked):" -ForegroundColor Yellow
+        foreach ($sr in $skippedRoles) {
+            $roleName = $sr.Role.name
+            Write-Host "    `u{23F8}`u{FE0F}  $roleName ($($sr.Key)) — all tasks blocked, will launch when unblocked" -ForegroundColor DarkYellow
+            Write-Host "    `u{23F8}`u{FE0F}  $($sr.Key) — waiting on: $($sr.WaitingOn -join ', ')" -ForegroundColor Gray
+        }
+        Write-Host ""
+        Write-Host "  Run 'team launch $teamName <role>' later when tasks unblock." -ForegroundColor Gray
     }
 
     Write-Host ""
@@ -769,6 +812,7 @@ function Show-Help {
     Write-Host "    role   <name> <key> <description> [model]  Add a role (generates role file)" -ForegroundColor White
     Write-Host "    task   <name> <id> <title> <role> [deps]   Add a task" -ForegroundColor White
     Write-Host "    launch <name> [role]                       Spawn agent tabs (with logs)" -ForegroundColor White
+    Write-Host "    unblock <name>                             Unblock tasks with met deps" -ForegroundColor White
     Write-Host "    status <name>                              Dashboard with heartbeats" -ForegroundColor White
     Write-Host "    watch  <name>                              Live dashboard (refreshes 3s)" -ForegroundColor White
     Write-Host "    plan   <scenario> [template-seed]          AI-generate a team plan" -ForegroundColor White
@@ -1167,7 +1211,7 @@ Stop-Transcript
             "scope-assessor" { "Scope Assessor" }
             "risk-assessor"  { "Risk Assessor" }
         }
-        Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"$title (planning)`" pwsh -NoExit -File `"$launcherFile`""
+        Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"$title (planning)`" pwsh -File `"$launcherFile`""
         $desc = switch ($role) {
             "tech-assessor"  { "analyzing codebase and complexity" }
             "scope-assessor" { "evaluating scope and phasing" }
@@ -1179,7 +1223,7 @@ Stop-Transcript
 
     # Spawn synthesizer after a short delay
     $synthLauncher = Join-Path $planDir "launch-synthesizer.ps1"
-    Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"Synthesizer (planning)`" pwsh -NoExit -File `"$synthLauncher`""
+    Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"Synthesizer (planning)`" pwsh -File `"$synthLauncher`""
     Write-Host "  `u{1F7E1} Synthesizer — waiting for assessments, will write proposed-plan.json" -ForegroundColor Yellow
 
     Write-Host ""
@@ -1290,11 +1334,11 @@ function Invoke-Apply {
         return
     }
 
-    $teamName = Read-Host "  Team name"
-    if (-not $teamName) {
-        Write-Host "  Team name required." -ForegroundColor Yellow
-        return
-    }
+    # Auto-generate team name from scenario (slugify: lowercase, replace non-alphanumeric with hyphens, trim)
+    $autoName = ($plan.scenario -replace '[^a-zA-Z0-9\s]', '' -replace '\s+', '-').ToLower()
+    if ($autoName.Length -gt 30) { $autoName = $autoName.Substring(0, 30) -replace '-$', '' }
+    $teamName = Read-Host "  Team name (default: $autoName)"
+    if (-not $teamName) { $teamName = $autoName }
 
     # Init team
     Invoke-Init $teamName $plan.scenario
@@ -1328,6 +1372,85 @@ function Invoke-Apply {
 
     Write-Host "  Ready! Run 'team launch $teamName' to start." -ForegroundColor Green
     Write-Host ""
+
+    # Clean up plan directory
+    $planDir = Join-Path (Get-Location).Path ".agent-teams\.plan"
+    if (Test-Path $planDir) {
+        Remove-Item $planDir -Recurse -Force
+        Write-Host "  🗑️  Plan directory cleaned up." -ForegroundColor Gray
+    }
+    Write-Host ""
+}
+
+# ── unblock ──────────────────────────────────────────────────────────────────
+# Checks blocked tasks and transitions them to pending if all dependencies are done.
+# Notifies downstream agents via their mailbox.
+function Invoke-Unblock([string]$teamName) {
+    if (-not $teamName) {
+        Write-Host "  Usage: team unblock <name>" -ForegroundColor Yellow
+        return
+    }
+    Assert-TeamExists $teamName
+
+    $tasksObj = Get-Tasks $teamName
+    $teamDir  = Get-TeamDir $teamName
+    $unblocked = @()
+
+    foreach ($task in $tasksObj.tasks) {
+        if ($task.status -ne "blocked") { continue }
+
+        $deps = @($task.depends_on)
+        if ($deps.Count -eq 0) {
+            # No deps but marked blocked — unblock it
+            $task.status = "pending"
+            $unblocked += $task
+            continue
+        }
+
+        $allDone = $true
+        foreach ($depId in $deps) {
+            $depTask = $tasksObj.tasks | Where-Object { $_.id -eq $depId }
+            if (-not $depTask -or $depTask.status -ne "done") {
+                $allDone = $false
+                break
+            }
+        }
+
+        if ($allDone) {
+            $task.status = "pending"
+            $unblocked += $task
+        }
+    }
+
+    if ($unblocked.Count -eq 0) {
+        Write-Host "  No tasks were unblocked. Dependencies not yet met." -ForegroundColor Yellow
+        return
+    }
+
+    Save-Tasks $teamName $tasksObj
+
+    # Notify agents via mailbox
+    $mailboxDir = Join-Path $teamDir "mailbox"
+    if (-not (Test-Path $mailboxDir)) {
+        New-Item -ItemType Directory -Force -Path $mailboxDir | Out-Null
+    }
+
+    $now = Get-Date -Format "o"
+    foreach ($task in $unblocked) {
+        $inboxPath = Join-Path $mailboxDir "$($task.assigned_to).inbox"
+        $msg = @"
+[FROM: lead] [TIME: $now]
+Your task "$($task.id)" is now unblocked. Dependencies complete. Begin work.
+---
+"@
+        Add-Content $inboxPath $msg -Encoding UTF8
+    }
+
+    Write-Host ""
+    foreach ($task in $unblocked) {
+        Write-Host "  `u{2705} $($task.id) `u{2192} $($task.assigned_to) [unblocked]" -ForegroundColor Green
+    }
+    Write-Host ""
 }
 
 # ── Main Dispatch ───────────────────────────────────────────────────────────
@@ -1342,8 +1465,9 @@ switch ($args[0]) {
     "status" { Invoke-Status $args[1] }
     "watch"  { Invoke-Watch  $args[1] }
     "list"   { Invoke-List }
-    "clean"  { Invoke-Clean  $args[1] }
-    "plan"   { Invoke-Plan   $args[1] $args[2] }
+    "clean"   { Invoke-Clean   $args[1] }
+    "unblock" { Invoke-Unblock $args[1] }
+    "plan"    { Invoke-Plan   $args[1] $args[2] }
     "apply"  { Invoke-Apply }
     default  { Show-Help }
 }
