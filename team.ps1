@@ -51,6 +51,7 @@ function Read-Json([string]$path) {
 function Write-Json([string]$path, $obj) {
     $tmp = "$path.tmp"
     $obj | ConvertTo-Json -Depth 10 | Set-Content $tmp -Encoding UTF8
+    if (Test-Path $path) { Remove-Item $path -Force }
     Move-Item $tmp $path -Force
 }
 

@@ -130,3 +130,15 @@ After completing all your tasks:
 3. Send a final message to `mailbox/lead.inbox`.
 4. Set your heartbeat to `idle` with `current_task: null`.
 5. Stop and wait — do not start work outside your assigned tasks.
+
+## Reporting Tool Issues
+
+If you encounter bugs with the **team coordination system itself** — tasks.json corruption, heartbeat failures, mailbox write conflicts, race conditions, launch problems — file an issue automatically:
+
+```
+gh issue create --repo aviraldua93/agent-teams \
+  --title "<concise description>" \
+  --body "<what happened, steps to reproduce, expected vs actual behavior>"
+```
+
+This helps improve the tool for everyone. Do NOT file issues about your project here — only coordination system bugs.
