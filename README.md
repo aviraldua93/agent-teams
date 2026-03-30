@@ -13,72 +13,22 @@ Each agent runs in its own terminal tab with a dedicated role, tools, and file o
 ![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen)
 
 ```mermaid
-graph TD
-    Lead["🧑‍💼 You (Lead Session)<br/><i>team plan → team apply → team launch</i>"]
-
-    subgraph feature ["🔧 feature"]
-        F_Arch["🏗️ Architect"] --> F_Code["💻 Coder"] --> F_Rev["🔍 Reviewer"]
-    end
-
-    subgraph fullstack ["🌐 fullstack"]
-        FS_Arch["🏗️ Architect"] --> FS_Back["⚙️ Backend"]
-        FS_Arch --> FS_Front["🎨 Frontend"]
-        FS_Back --> FS_Rev["🔍 Reviewer"]
-        FS_Front --> FS_Rev
-    end
-
-    subgraph sprint ["🏃 sprint"]
-        S_PM["📋 PM"] --> S_Arch["🏗️ Architect"] --> S_Code["💻 Coder"]
-        S_Code --> S_QA["🧪 QA"]
-        S_Code --> S_Rev["🔍 Reviewer"]
-    end
-
-    subgraph audit ["🛡️ audit"]
-        A_Sec["🔒 Security"]
-        A_Perf["⚡ Performance"]
-        A_Qual["📏 Quality"]
-        A_Sec --> A_Syn["📊 Synthesizer"]
-        A_Perf --> A_Syn
-        A_Qual --> A_Syn
-    end
-
-    subgraph research ["🔬 research"]
-        R1["🔍 Researcher 1"]
-        R2["🔍 Researcher 2"]
-        R3["🔍 Researcher 3"]
-        R1 --> R_Syn["📊 Synthesizer"]
-        R2 --> R_Syn
-        R3 --> R_Syn
-    end
-
-    subgraph bugfix ["🐛 bugfix"]
-        B_Inv["🔎 Investigator"] --> B_Fix["🔧 Fixer"] --> B_Rev["🔍 Reviewer"]
-    end
-
-    subgraph ship ["🚀 ship"]
-        SH_QA["🧪 QA"]
-        SH_Rev["🔍 Reviewer"]
-        SH_QA --> SH_RM["📦 Release Manager"]
-        SH_Rev --> SH_RM
-    end
-
-    subgraph refactor ["♻️ refactor"]
-        RF_Exp["🗺️ Explorer"] --> RF_Code["💻 Coder"]
-        RF_Exp --> RF_Test["🧪 Tester"]
-        RF_Code --> RF_Rev["🔍 Reviewer"]
-        RF_Test --> RF_Rev
-    end
-
-    Lead -.->|"pick a template"| feature
-    Lead -.-> fullstack
-    Lead -.-> sprint
-    Lead -.-> audit
-    Lead -.-> research
-    Lead -.-> bugfix
-    Lead -.-> ship
-    Lead -.-> refactor
+graph LR
+    Lead["🧑‍💼 You"] -->|team plan| Plan["📋 Plan"]
+    Plan -->|team apply| Team["🏗️ Team"]
+    Team -->|team launch| A1["⚙️ Agent 1"]
+    Team --> A2["🎨 Agent 2"]
+    Team --> A3["🔍 Agent 3"]
+    Team --> AN["💻 Agent N"]
+    A1 --> FS[".agent-teams/"]
+    A2 --> FS
+    A3 --> FS
+    AN --> FS
 
     style Lead fill:#4a90d9,color:#fff,stroke:none
+    style Plan fill:#6c5ce7,color:#fff,stroke:none
+    style Team fill:#00b894,color:#fff,stroke:none
+    style FS fill:#2d3436,color:#fff,stroke:#636e72
 ```
 
 ---
@@ -179,7 +129,76 @@ team init flaky-tests "Tests failing intermittently on CI" bugfix
 team init api-redesign "Migrate REST endpoints to v2 schema" refactor
 team init framework-eval "Evaluate React vs Svelte vs Solid" research
 team init dashboard "Build analytics dashboard with API" fullstack
+team init v2-release "Ship v2.0 to production" ship
+team init q4-sprint "Q4 feature: user notifications" sprint
+team init security-review "Audit before SOC2 compliance" audit
 ```
+
+<details>
+<summary><b>📊 Template flow diagrams</b> (click to expand)</summary>
+
+#### feature
+```mermaid
+graph LR
+    A["🏗️ Architect"] --> C["💻 Coder"] --> R["🔍 Reviewer"]
+```
+
+#### fullstack
+```mermaid
+graph LR
+    A["🏗️ Architect"] --> B["⚙️ Backend"]
+    A --> F["🎨 Frontend"]
+    B --> R["🔍 Reviewer"]
+    F --> R
+```
+
+#### sprint
+```mermaid
+graph LR
+    PM["📋 PM"] --> A["🏗️ Architect"] --> C["💻 Coder"]
+    C --> QA["🧪 QA"]
+    C --> R["🔍 Reviewer"]
+```
+
+#### audit
+```mermaid
+graph LR
+    S["🔒 Security"] --> Syn["📊 Synthesizer"]
+    P["⚡ Performance"] --> Syn
+    Q["📏 Quality"] --> Syn
+```
+
+#### research
+```mermaid
+graph LR
+    R1["🔍 Researcher 1"] --> Syn["📊 Synthesizer"]
+    R2["🔍 Researcher 2"] --> Syn
+    R3["🔍 Researcher 3"] --> Syn
+```
+
+#### ship
+```mermaid
+graph LR
+    QA["🧪 QA"] --> RM["📦 Release Manager"]
+    R["🔍 Reviewer"] --> RM
+```
+
+#### bugfix
+```mermaid
+graph LR
+    I["🔎 Investigator"] --> F["🔧 Fixer"] --> R["🔍 Reviewer"]
+```
+
+#### refactor
+```mermaid
+graph LR
+    E["🗺️ Explorer"] --> C["💻 Coder"]
+    E --> T["🧪 Tester"]
+    C --> R["🔍 Reviewer"]
+    T --> R
+```
+
+</details>
 
 Templates are JSON files in `templates/presets/`. Create your own or edit the built-ins.
 
