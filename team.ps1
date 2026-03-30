@@ -389,8 +389,12 @@ $readsYaml
 
 You are the $roleName. $description
 
-Follow the team protocol (protocol.md) and coordinate via the mailbox system.
-Write your deliverables to the artifacts/ directory.
+1. Follow the team protocol (``protocol.md``). Read it first if you haven't already.
+2. Read ``tasks.json`` to find tasks where ``assigned_to`` matches your role key (``$roleKey``).
+3. Work through your tasks in dependency order. Write deliverables to the files listed in ``owns_files`` above.
+4. Follow the deliverable format specified in your role file template. Every deliverable must include: Summary, Details/Files Changed, and Acceptance Criteria Status.
+5. Update your heartbeat (``heartbeat/$roleKey.json``) after claiming each task and when going idle.
+6. Send completion messages to ``mailbox/lead.inbox`` as each task finishes.
 "@
 
     $roleFilePath = Join-Path $rolesDir "$roleKey.md"
