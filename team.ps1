@@ -623,6 +623,46 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
         New-Item -ItemType Directory -Force -Path (Join-Path $teamDir $sub) | Out-Null
     }
 
+    # Pre-flight: detect and recover stuck in_progress tasks
+    $tasksObj = Get-Tasks $teamName
+    if ($tasksObj) {
+        $stuckTasks = @($tasksObj.tasks | Where-Object { $_.status -eq "in_progress" })
+        if ($stuckTasks.Count -gt 0) {
+            Write-Host ""
+            Write-Host "  ⚠️  Found $($stuckTasks.Count) task(s) stuck in 'in_progress':" -ForegroundColor Yellow
+            foreach ($st in $stuckTasks) {
+                # Check if the assigned agent has a fresh heartbeat
+                $hbPath = Join-Path $teamDir "heartbeat\$($st.assigned_to).json"
+                $agentAlive = $false
+                if (Test-Path $hbPath) {
+                    try {
+                        $hb = Get-Content $hbPath -Raw -Encoding UTF8 | ConvertFrom-Json
+                        $staleSecs = ((Get-Date) - [DateTime]::Parse($hb.last_active)).TotalSeconds
+                        if ($staleSecs -lt 120) { $agentAlive = $true }
+                    } catch {}
+                }
+
+                if ($agentAlive) {
+                    Write-Host "    🔄 $($st.id) → $($st.assigned_to) — agent still alive, keeping in_progress" -ForegroundColor Gray
+                } else {
+                    # Check if deliverable exists (work was done but status not updated)
+                    $deliverablePath = Join-Path $teamDir $st.deliverable
+                    if (Test-Path $deliverablePath) {
+                        Write-Host "    🔧 $($st.id) → recovering (deliverable exists, marking done)" -ForegroundColor Yellow
+                        $st.status = "done"
+                        Append-Event $teamDir "auto_recovered" $st.id $st.assigned_to "stuck in_progress, deliverable exists"
+                    } else {
+                        Write-Host "    ♻️  $($st.id) → resetting to pending (agent dead, no deliverable)" -ForegroundColor Yellow
+                        $st.status = "pending"
+                        Append-Event $teamDir "task_reset" $st.id $st.assigned_to "stuck in_progress, agent dead"
+                    }
+                }
+            }
+            Save-Tasks $teamName $tasksObj
+            Write-Host ""
+        }
+    }
+
     if ($specificRole) {
         # ── Single-role launch (fire-and-forget) ──────────────────────────
         $roleProp = $manifest.roles.PSObject.Properties | Where-Object { $_.Name -eq $specificRole }
@@ -709,6 +749,22 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
 
             $doneFile = Join-Path $launchDir "$roleKey.done"
             $doneFiles[$roleKey] = $doneFile
+
+            # Check if this role is already running (fresh heartbeat from a previous wave)
+            $existingHbPath = Join-Path $teamDir "heartbeat\$roleKey.json"
+            if (Test-Path $existingHbPath) {
+                try {
+                    $existingHb = Get-Content $existingHbPath -Raw -Encoding UTF8 | ConvertFrom-Json
+                    $existingStale = ((Get-Date) - [DateTime]::Parse($existingHb.last_active)).TotalSeconds
+                    if ($existingStale -lt 120) {
+                        Write-Host "    ⏭️  $($roleProp.Value.name) ($roleKey) — already running (heartbeat ${existingStale}s ago)" -ForegroundColor Yellow
+                        # Still track the .done file so we wait for it
+                        $doneFiles[$roleKey] = $doneFile
+                        continue
+                    }
+                } catch {}
+            }
+
             # Remove old .done file to avoid stale signals
             Remove-Item $doneFile -Force -ErrorAction SilentlyContinue
 
@@ -808,10 +864,31 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
                 break
             }
 
-            # Timeout per wave: 15 minutes
+            # Timeout per wave: 15 minutes (but extend if agents are alive)
             if ($elapsed -gt 900) {
-                Write-Host "    ⚠️  Wave timed out after 15 minutes" -ForegroundColor Red
-                break
+                # Check if any remaining agent is actually alive (fresh heartbeat)
+                $aliveCount = 0
+                foreach ($rk in $remaining) {
+                    $hbPath = Join-Path $teamDir "heartbeat\$rk.json"
+                    if (Test-Path $hbPath) {
+                        try {
+                            $hb = Get-Content $hbPath -Raw -Encoding UTF8 | ConvertFrom-Json
+                            $lastActive = [DateTime]::Parse($hb.last_active)
+                            $staleSecs = ((Get-Date) - $lastActive).TotalSeconds
+                            if ($staleSecs -lt 120) { $aliveCount++ }
+                        } catch {}
+                    }
+                }
+
+                if ($aliveCount -gt 0) {
+                    # Agents are alive — extend timeout, don't kill
+                    if ($elapsed % 60 -lt 6) {  # show message every ~60s
+                        Write-Host "    ⏳ Timeout extended — $aliveCount agent(s) still have fresh heartbeat" -ForegroundColor Yellow
+                    }
+                } else {
+                    Write-Host "    ⚠️  Wave timed out after $([math]::Round($elapsed/60))m — no agents have fresh heartbeat" -ForegroundColor Red
+                    break
+                }
             }
         }
 
