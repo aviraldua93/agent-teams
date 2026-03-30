@@ -63,9 +63,22 @@ if ($profileContent -match "Agent Teams CLI") {
 }
 
 Write-Host ""
-Write-Host "  Done! Restart your terminal or run:" -ForegroundColor Cyan
-Write-Host "    . `$PROFILE" -ForegroundColor Gray
+Write-Host "  ✅ Installed!" -ForegroundColor Green
 Write-Host ""
-Write-Host "  Then try:" -ForegroundColor Cyan
-Write-Host "    team" -ForegroundColor Gray
+Write-Host "  NEXT STEPS:" -ForegroundColor Yellow
+Write-Host "    1. Restart your terminal (or run:  . `$PROFILE )" -ForegroundColor White
+Write-Host "    2. cd into your project directory" -ForegroundColor White
+Write-Host "    3. Run:" -ForegroundColor White
+Write-Host ""
+Write-Host '       team init my-feature "Build feature X with tests"' -ForegroundColor Cyan
+Write-Host '       team role my-feature architect "Designs the spec"' -ForegroundColor Cyan
+Write-Host '       team role my-feature coder "Implements the code" claude-sonnet-4' -ForegroundColor Cyan
+Write-Host '       team role my-feature reviewer "Reviews for correctness"' -ForegroundColor Cyan
+Write-Host '       team task my-feature design "Design the architecture" architect' -ForegroundColor Cyan
+Write-Host '       team task my-feature implement "Build it" coder design' -ForegroundColor Cyan
+Write-Host '       team task my-feature review "Review it" reviewer implement' -ForegroundColor Cyan
+Write-Host '       team launch my-feature' -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  This opens 3 terminal tabs — one per agent — all working in parallel." -ForegroundColor Gray
+Write-Host "  Monitor with:  team status my-feature" -ForegroundColor Gray
 Write-Host ""
