@@ -14,30 +14,71 @@ Each agent runs in its own terminal tab with a dedicated role, tools, and file o
 
 ```mermaid
 graph TD
-    Lead["🧑‍💼 You (Lead Session)"]
-    Lead -->|"team plan → team apply → team launch"| Architect
-    Lead --> Backend
-    Lead --> Frontend
-    Lead --> Reviewer
+    Lead["🧑‍💼 You (Lead Session)<br/><i>team plan → team apply → team launch</i>"]
 
-    Architect["🏗️ Architect<br/>designs spec"]
-    Backend["⚙️ Backend<br/>API + database"]
-    Frontend["🎨 Frontend<br/>UI + routing"]
-    Reviewer["🔍 Reviewer<br/>security + tests"]
+    subgraph feature ["🔧 feature"]
+        F_Arch["🏗️ Architect"] --> F_Code["💻 Coder"] --> F_Rev["🔍 Reviewer"]
+    end
 
-    Architect --> FS
-    Backend --> FS
-    Frontend --> FS
-    Reviewer --> FS
+    subgraph fullstack ["🌐 fullstack"]
+        FS_Arch["🏗️ Architect"] --> FS_Back["⚙️ Backend"]
+        FS_Arch --> FS_Front["🎨 Frontend"]
+        FS_Back --> FS_Rev["🔍 Reviewer"]
+        FS_Front --> FS_Rev
+    end
 
-    FS[".agent-teams/{name}/<br/>tasks.json · artifacts/ · mailbox/ · heartbeat/"]
+    subgraph sprint ["🏃 sprint"]
+        S_PM["📋 PM"] --> S_Arch["🏗️ Architect"] --> S_Code["💻 Coder"]
+        S_Code --> S_QA["🧪 QA"]
+        S_Code --> S_Rev["🔍 Reviewer"]
+    end
+
+    subgraph audit ["🛡️ audit"]
+        A_Sec["🔒 Security"]
+        A_Perf["⚡ Performance"]
+        A_Qual["📏 Quality"]
+        A_Sec --> A_Syn["📊 Synthesizer"]
+        A_Perf --> A_Syn
+        A_Qual --> A_Syn
+    end
+
+    subgraph research ["🔬 research"]
+        R1["🔍 Researcher 1"]
+        R2["🔍 Researcher 2"]
+        R3["🔍 Researcher 3"]
+        R1 --> R_Syn["📊 Synthesizer"]
+        R2 --> R_Syn
+        R3 --> R_Syn
+    end
+
+    subgraph bugfix ["🐛 bugfix"]
+        B_Inv["🔎 Investigator"] --> B_Fix["🔧 Fixer"] --> B_Rev["🔍 Reviewer"]
+    end
+
+    subgraph ship ["🚀 ship"]
+        SH_QA["🧪 QA"]
+        SH_Rev["🔍 Reviewer"]
+        SH_QA --> SH_RM["📦 Release Manager"]
+        SH_Rev --> SH_RM
+    end
+
+    subgraph refactor ["♻️ refactor"]
+        RF_Exp["🗺️ Explorer"] --> RF_Code["💻 Coder"]
+        RF_Exp --> RF_Test["🧪 Tester"]
+        RF_Code --> RF_Rev["🔍 Reviewer"]
+        RF_Test --> RF_Rev
+    end
+
+    Lead -.->|"pick a template"| feature
+    Lead -.-> fullstack
+    Lead -.-> sprint
+    Lead -.-> audit
+    Lead -.-> research
+    Lead -.-> bugfix
+    Lead -.-> ship
+    Lead -.-> refactor
 
     style Lead fill:#4a90d9,color:#fff,stroke:none
-    style Architect fill:#6c5ce7,color:#fff,stroke:none
-    style Backend fill:#00b894,color:#fff,stroke:none
-    style Frontend fill:#fdcb6e,color:#000,stroke:none
-    style Reviewer fill:#e17055,color:#fff,stroke:none
-    style FS fill:#2d3436,color:#fff,stroke:#636e72
 ```
 
 ---
