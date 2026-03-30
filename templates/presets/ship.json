@@ -16,7 +16,7 @@
     },
     {
       "key": "reviewer",
-      "description": "Pre-landing code review: security, correctness, test coverage, API contract adherence",
+      "description": "Pre-landing code review: security, correctness, test coverage, API contract adherence. Creates fix tasks for blocking findings.",
       "model": null,
       "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell"]
     }

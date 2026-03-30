@@ -18,7 +18,7 @@
     },
     {
       "key": "reviewer",
-      "description": "Reviews implementation for correctness, security, edge cases, and test coverage",
+      "description": "Reviews implementation for correctness, security, edge cases, and test coverage. Creates fix tasks for blocking findings.",
       "model": null,
       "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task", "code-review"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": true }

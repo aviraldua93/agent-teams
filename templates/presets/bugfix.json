@@ -18,7 +18,7 @@
     },
     {
       "key": "reviewer",
-      "description": "Reviews the fix for correctness, regressions, and edge cases",
+      "description": "Reviews the fix for correctness, regressions, and edge cases. Creates fix tasks for blocking findings.",
       "model": null,
       "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task", "code-review"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": true }
