@@ -992,6 +992,13 @@ OUTPUT FORMAT (proposed-plan.json):
       "why": "why this role is needed for this specific task"
     }
   ],
+  "feasibility": {
+    "verdict": "go|risky|no-go",
+    "confidence": 0.0-1.0,
+    "concerns": ["list of specific concerns"],
+    "recommendation": "what to do about it",
+    "alternative": "simpler approach if this is too complex, or null"
+  },
   "tasks": [
     {
       "id": "task-id",
@@ -1015,6 +1022,12 @@ RULES:
 - If a seed template is provided, start from it but adapt to the actual codebase.
 - Write ONLY the JSON file. Do not modify any project files.
 - After writing the plan, say "Plan written to proposed-plan.json" and stop.
+- You MUST assess feasibility before proposing the team.
+- "go" = straightforward, can be done in one team run (confidence > 0.7)
+- "risky" = doable but complex, may need scope reduction (confidence 0.3-0.7)
+- "no-go" = too complex for a single team run, needs decomposition (confidence < 0.3)
+- Be honest. Wasting tokens on an infeasible plan is worse than saying no.
+- If risky or no-go, suggest a simpler alternative or phased approach.
 "@
 
     $promptFile = Join-Path $planDir "planner-prompt.txt"
@@ -1066,6 +1079,53 @@ function Invoke-Apply {
     Write-Host "  Scenario:  $($plan.scenario)" -ForegroundColor White
     Write-Host "  Rationale: $($plan.rationale)" -ForegroundColor Gray
     Write-Host ""
+
+    # Show feasibility assessment
+    if ($plan.feasibility) {
+        $f = $plan.feasibility
+        $verdictIcon = switch ($f.verdict) {
+            "go"    { "✅" }
+            "risky" { "⚠️" }
+            "no-go" { "🛑" }
+            default { "❓" }
+        }
+        $verdictColor = switch ($f.verdict) {
+            "go"    { "Green" }
+            "risky" { "Yellow" }
+            "no-go" { "Red" }
+            default { "Gray" }
+        }
+        
+        $confidencePct = [math]::Round($f.confidence * 100)
+        Write-Host ""
+        Write-Host "  FEASIBILITY" -ForegroundColor Yellow
+        Write-Host "    $verdictIcon $($f.verdict.ToUpper()) (confidence: $confidencePct%)" -ForegroundColor $verdictColor
+        
+        if ($f.concerns) {
+            Write-Host ""
+            foreach ($concern in $f.concerns) {
+                Write-Host "    • $concern" -ForegroundColor $verdictColor
+            }
+        }
+        
+        if ($f.recommendation) {
+            Write-Host ""
+            Write-Host "    Recommendation: $($f.recommendation)" -ForegroundColor White
+        }
+        
+        if ($f.alternative) {
+            Write-Host "    Alternative: $($f.alternative)" -ForegroundColor Cyan
+        }
+        Write-Host ""
+        
+        # Block on no-go
+        if ($f.verdict -eq "no-go") {
+            Write-Host "  🛑 Plan is marked NO-GO. Review concerns above." -ForegroundColor Red
+            Write-Host "  Edit .agent-teams/.plan/proposed-plan.json to override, or run 'team plan' with a different scope." -ForegroundColor Gray
+            $override = Read-Host "  Force apply anyway? [y/N]"
+            if ($override -ne 'y') { return }
+        }
+    }
 
     Write-Host "  ROLES" -ForegroundColor Yellow
     foreach ($role in $plan.roles) {
