@@ -496,6 +496,7 @@ $heartbeatBlock
 $roleInstructions
 
 IMPORTANT: Begin by reading protocol.md now. Then read your role file, then tasks.json, then start working.
+WHEN ALL YOUR TASKS ARE COMPLETE: You MUST type /exit to end your session. This signals the orchestrator that you are done.
 "@
 
     # Write prompt to file
@@ -511,11 +512,15 @@ IMPORTANT: Begin by reading protocol.md now. Then read your role file, then task
         $signalLine = "`nSet-Content '$($DoneFile -replace "'","''")' (Get-Date -Format 'o') -Encoding UTF8"
     }
 
+    # Always use -i (interactive) for the nice TUI. Agents are told to /exit when done.
+    $copilotFlag = "-i"
+    $noExitFlag = if ($DoneFile) { "" } else { " -NoExit" }
+
     $launcherScript = @"
 Set-Location '$($ProjectDir -replace "'","''")'
 Start-Transcript -Path '$($logFile -replace "'","''")' -Append
 `$promptText = Get-Content '$($promptFile -replace "'","''")' -Raw
-copilot -i `$promptText --add-dir '$($TeamDir -replace "'","''")' --yolo$modelFlag
+copilot $copilotFlag `$promptText --add-dir '$($TeamDir -replace "'","''")' --yolo$modelFlag
 Stop-Transcript$signalLine
 "@
     $launcherFile = Join-Path $launchDir "launch-$RoleKey.ps1"
@@ -523,7 +528,7 @@ Stop-Transcript$signalLine
 
     # Spawn terminal tab
     $tabTitle = "$($Role.name) ($TeamName)"
-    Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"$tabTitle`" pwsh -NoExit -File `"$launcherFile`""
+    Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"$tabTitle`" pwsh$noExitFlag -File `"$launcherFile`""
 }
 
 
