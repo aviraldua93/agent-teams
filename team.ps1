@@ -965,94 +965,230 @@ function Invoke-Plan([string]$scenario, [string]$seedTemplate) {
     $planDir = Join-Path $projectDir ".agent-teams\.plan"
     New-Item -ItemType Directory -Force -Path $planDir | Out-Null
 
-    $seedLine = if ($seedTemplate) { $seedTemplate } else { "none" }
+    # Clean stale assessment files from any previous run
+    foreach ($stale in @("tech-assessment.md", "scope-assessment.md", "risk-assessment.md", "proposed-plan.json")) {
+        $stalePath = Join-Path $planDir $stale
+        if (Test-Path $stalePath) { Remove-Item $stalePath -Force }
+    }
 
-    $prompt = @"
-You are a Team Planner. Your job is to analyze a project and propose an agent team.
+    $seedInfo = ""
+    if ($seedTemplate) {
+        $seedPath = Join-Path $ToolRoot "templates\presets\$seedTemplate.json"
+        if (-not (Test-Path $seedPath)) {
+            $seedPath = Join-Path (Split-Path $MyInvocation.ScriptName -Parent) "templates\presets\$seedTemplate.json"
+        }
+        if (Test-Path $seedPath) {
+            $seedInfo = "SEED TEMPLATE ($seedTemplate): $(Get-Content $seedPath -Raw)"
+        }
+    }
 
+    # Common context for all assessors
+    $commonContext = @"
 PROJECT DIRECTORY: $projectDir
 SCENARIO: $scenario
-SEED TEMPLATE: $seedLine
+$seedInfo
 
-INSTRUCTIONS:
-1. Quick-scan the project: file tree, README, package.json/pyproject.toml, key config files.
-   Do NOT deep-dive — spend max 2 minutes exploring.
-2. Based on the scenario and codebase, propose a team structure.
-3. Write your proposal to: $planDir\proposed-plan.json
+RULES:
+- Explore the project quickly (file tree, README, package.json/pyproject.toml, key config files).
+- Spend max 2 minutes exploring. Be efficient.
+- Write your assessment as Markdown to the specified output file.
+- After writing, stop. Do not modify any project files.
+"@
+
+    # --- Tech Assessor ---
+    $techPrompt = @"
+You are the TECHNICAL FEASIBILITY ASSESSOR on a planning board.
+
+$commonContext
+
+YOUR TASK:
+Assess whether this scenario is technically feasible in the current codebase.
+
+WRITE YOUR ASSESSMENT TO: $planDir\tech-assessment.md
+
+INCLUDE:
+1. Tech stack summary (language, framework, key dependencies)
+2. Files that would need to change (list them)
+3. Estimated number of files to create/modify
+4. Technical complexity (low/medium/high/extreme)
+5. Missing dependencies or infrastructure needed
+6. Technical blockers or unknowns
+7. Your verdict: feasible / challenging / infeasible
+
+Be specific. Reference actual files and code patterns you found.
+After writing the file, say "Assessment written" and stop.
+"@
+
+    # --- Scope Assessor ---
+    $scopePrompt = @"
+You are the SCOPE ASSESSOR on a planning board.
+
+$commonContext
+
+YOUR TASK:
+Assess whether the scope is right for a single team run (2-4 agents, <2 hours).
+
+WRITE YOUR ASSESSMENT TO: $planDir\scope-assessment.md
+
+INCLUDE:
+1. How many distinct roles are needed? (max 5 per team)
+2. How many tasks? (max 3 per role)
+3. Can this be done in one team run, or should it be phased?
+4. If phased, what's Phase 1 (minimum viable)?
+5. Are there parallel work streams possible?
+6. Dependencies between tasks (what blocks what?)
+7. Your verdict: right-sized / needs-reduction / needs-phasing
+
+Be practical. A team run should produce a shippable result, not a half-done mess.
+After writing the file, say "Assessment written" and stop.
+"@
+
+    # --- Risk Assessor ---
+    $riskPrompt = @"
+You are the RISK ASSESSOR on a planning board.
+
+$commonContext
+
+YOUR TASK:
+Identify what could go wrong if a team of agents attempts this.
+
+WRITE YOUR ASSESSMENT TO: $planDir\risk-assessment.md
+
+INCLUDE:
+1. Breaking change risks (will this break existing functionality?)
+2. File conflict risks (will multiple agents need the same files?)
+3. Missing test coverage for affected areas
+4. Security concerns (auth changes, data exposure, injection risks)
+5. Dependency risks (new packages, version conflicts)
+6. Integration risks (does this touch APIs, databases, external services?)
+7. Rollback difficulty (how hard to undo if it goes wrong?)
+8. Your verdict: low-risk / medium-risk / high-risk / showstopper
+
+Be pessimistic. Your job is to find problems before agents waste tokens on them.
+After writing the file, say "Assessment written" and stop.
+"@
+
+    # --- Synthesizer ---
+    $synthPrompt = @"
+You are the SYNTHESIZER on a planning board.
+
+$commonContext
+
+YOUR TASK:
+1. Wait for all 3 assessment files to appear:
+   - $planDir\tech-assessment.md
+   - $planDir\scope-assessment.md
+   - $planDir\risk-assessment.md
+
+   Check every 15 seconds. If after 5 minutes any are missing, proceed with what you have.
+
+2. Read all assessments.
+
+3. Synthesize into a SINGLE proposed-plan.json at: $planDir\proposed-plan.json
 
 OUTPUT FORMAT (proposed-plan.json):
 {
-  "scenario": "the scenario",
-  "rationale": "1-2 sentences on why this team structure fits",
-  "roles": [
-    {
-      "key": "role-key",
-      "description": "what this role does",
-      "model": "claude-sonnet-4 or null",
-      "why": "why this role is needed for this specific task"
-    }
-  ],
+  "scenario": "$scenario",
   "feasibility": {
     "verdict": "go|risky|no-go",
     "confidence": 0.0-1.0,
-    "concerns": ["list of specific concerns"],
-    "recommendation": "what to do about it",
-    "alternative": "simpler approach if this is too complex, or null"
+    "concerns": ["combined concerns from all assessors"],
+    "recommendation": "what to do",
+    "alternative": "simpler approach or null",
+    "assessor_verdicts": {
+      "technical": "feasible|challenging|infeasible",
+      "scope": "right-sized|needs-reduction|needs-phasing",
+      "risk": "low-risk|medium-risk|high-risk|showstopper"
+    }
   },
+  "rationale": "1-2 sentences on why this team structure",
+  "roles": [
+    {
+      "key": "role-key",
+      "description": "what this role does for THIS specific task",
+      "model": null,
+      "why": "why this role is needed"
+    }
+  ],
   "tasks": [
     {
       "id": "task-id",
-      "title": "what to do",
+      "title": "specific task title",
       "assigned_to": "role-key",
       "depends_on": [],
       "acceptance_criteria": [
-        "Specific criterion 1 that defines done",
-        "Specific criterion 2",
-        "Specific criterion 3"
+        "Specific verifiable criterion 1",
+        "Specific verifiable criterion 2"
       ]
     }
   ]
 }
 
 RULES:
-- Max 5 roles. More than 5 = split into multiple teams.
-- Max 3 tasks per role. More than 3 = split the role.
-- Every task MUST have acceptance_criteria (2-5 items each).
-- Acceptance criteria must be specific and verifiable, not vague.
-- If a seed template is provided, start from it but adapt to the actual codebase.
-- Write ONLY the JSON file. Do not modify any project files.
-- After writing the plan, say "Plan written to proposed-plan.json" and stop.
-- You MUST assess feasibility before proposing the team.
-- "go" = straightforward, can be done in one team run (confidence > 0.7)
-- "risky" = doable but complex, may need scope reduction (confidence 0.3-0.7)
-- "no-go" = too complex for a single team run, needs decomposition (confidence < 0.3)
-- Be honest. Wasting tokens on an infeasible plan is worse than saying no.
-- If risky or no-go, suggest a simpler alternative or phased approach.
+- verdict = "go" if all assessors are positive (confidence > 0.7)
+- verdict = "risky" if any assessor flags concerns (confidence 0.3-0.7)
+- verdict = "no-go" if any assessor says infeasible/showstopper (confidence < 0.3)
+- Every task MUST have 2-5 acceptance criteria
+- Max 5 roles, max 3 tasks per role
+- If scope assessor says "needs-phasing", only plan Phase 1
+- Be honest. Don't create an optimistic plan that ignores assessor warnings.
+
+After writing proposed-plan.json, say "Plan written to proposed-plan.json" and stop.
 "@
 
-    $promptFile = Join-Path $planDir "planner-prompt.txt"
-    Set-Content $promptFile $prompt -Encoding UTF8
+    # Write all prompt files
+    Set-Content (Join-Path $planDir "tech-assessor.prompt") $techPrompt -Encoding UTF8
+    Set-Content (Join-Path $planDir "scope-assessor.prompt") $scopePrompt -Encoding UTF8
+    Set-Content (Join-Path $planDir "risk-assessor.prompt") $riskPrompt -Encoding UTF8
+    Set-Content (Join-Path $planDir "synthesizer.prompt") $synthPrompt -Encoding UTF8
 
-    # Write launcher script
-    $launcherScript = @"
+    # Write launcher scripts for each assessor and synthesizer
+    foreach ($role in @("tech-assessor", "scope-assessor", "risk-assessor", "synthesizer")) {
+        $promptFile = Join-Path $planDir "$role.prompt"
+        $launcherScript = @"
 Set-Location '$($projectDir -replace "'","''")'
+Start-Transcript -Path '$($planDir -replace "'","''")\$role.log' -Append
 `$promptText = Get-Content '$($promptFile -replace "'","''")' -Raw
-copilot -i `$promptText --yolo
+copilot -i `$promptText --add-dir '$($planDir -replace "'","''")' --yolo
+Stop-Transcript
 "@
-    $launcherFile = Join-Path $planDir "launch-planner.ps1"
-    Set-Content $launcherFile $launcherScript -Encoding UTF8
+        Set-Content (Join-Path $planDir "launch-$role.ps1") $launcherScript -Encoding UTF8
+    }
 
-    # Spawn tab
-    Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"Planner`" pwsh -NoExit -File `"$launcherFile`""
+    # Spawn assessors in parallel
+    Write-Host ""
+    Write-Host "  `u{1F50D} Planning board for: $scenario" -ForegroundColor Cyan
+    Write-Host ""
+
+    foreach ($role in @("tech-assessor", "scope-assessor", "risk-assessor")) {
+        $launcherFile = Join-Path $planDir "launch-$role.ps1"
+        $title = switch ($role) {
+            "tech-assessor"  { "Tech Assessor" }
+            "scope-assessor" { "Scope Assessor" }
+            "risk-assessor"  { "Risk Assessor" }
+        }
+        Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"$title (planning)`" pwsh -NoExit -File `"$launcherFile`""
+        $desc = switch ($role) {
+            "tech-assessor"  { "analyzing codebase and complexity" }
+            "scope-assessor" { "evaluating scope and phasing" }
+            "risk-assessor"  { "identifying risks and blockers" }
+        }
+        Write-Host "  `u{1F7E2} $title — $desc" -ForegroundColor Green
+        Start-Sleep -Milliseconds 800
+    }
+
+    # Spawn synthesizer after a short delay
+    $synthLauncher = Join-Path $planDir "launch-synthesizer.ps1"
+    Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"Synthesizer (planning)`" pwsh -NoExit -File `"$synthLauncher`""
+    Write-Host "  `u{1F7E1} Synthesizer — waiting for assessments, will write proposed-plan.json" -ForegroundColor Yellow
 
     Write-Host ""
-    Write-Host "  `u{1F50D} Planning team for: $scenario" -ForegroundColor Cyan
+    Write-Host "  Planning board is running in 4 tabs." -ForegroundColor Cyan
+    Write-Host "  Assessors explore the codebase in parallel." -ForegroundColor Gray
+    Write-Host "  Synthesizer waits for all 3, then writes proposed-plan.json." -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  A planner session has opened in a new tab." -ForegroundColor White
-    Write-Host "  It will explore your project and write a plan to .agent-teams/.plan/proposed-plan.json" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "  When the planner finishes, run:" -ForegroundColor White
-    Write-Host "    team apply" -ForegroundColor Yellow
+    Write-Host "  When complete, run:" -ForegroundColor Cyan
+    Write-Host "    team apply" -ForegroundColor White
     Write-Host ""
 }
 
