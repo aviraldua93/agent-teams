@@ -626,7 +626,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
             Start-Sleep -Milliseconds 800
         }
 
-        # Wait for this wave to complete
+        # Wait for this wave to complete — 3-probe failure detection
         Write-Host ""
         $startTime = Get-Date
         while ($true) {
@@ -634,20 +634,75 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
             $elapsed = [math]::Round(((Get-Date) - $startTime).TotalSeconds)
 
             $completed = @()
+            $deadAgents = @()
             foreach ($roleKey in $pendingRoles) {
-                if (Test-Path $doneFiles[$roleKey]) { $completed += $roleKey }
+                # Probe 1: COMPLETION — .done signal file exists
+                if (Test-Path $doneFiles[$roleKey]) {
+                    $completed += $roleKey
+                    continue
+                }
+
+                # Probe 2: EVIDENCE — all tasks for this role marked done in tasks.json?
+                $tasksObj = Get-Tasks $teamName
+                $roleTasks = @($tasksObj.tasks | Where-Object { $_.assigned_to -eq $roleKey })
+                $allDone = ($roleTasks.Count -gt 0) -and (@($roleTasks | Where-Object { $_.status -ne "done" }).Count -eq 0)
+                if ($allDone) {
+                    # Agent finished work but crashed before .done signal — recover
+                    Set-Content $doneFiles[$roleKey] "recovered-$(Get-Date -Format 'o')" -Encoding UTF8
+                    $completed += $roleKey
+                    Write-Host "    🔧 $roleKey — recovered (tasks done, .done signal was missing)" -ForegroundColor Yellow
+                    continue
+                }
+
+                # Probe 3: LIVENESS — heartbeat fresh?
+                $hbPath = Join-Path $teamDir "heartbeat\$roleKey.json"
+                if (Test-Path $hbPath) {
+                    try {
+                        $hb = Get-Content $hbPath -Raw -Encoding UTF8 | ConvertFrom-Json
+                        $lastActive = [DateTime]::Parse($hb.last_active)
+                        $staleSecs = ((Get-Date) - $lastActive).TotalSeconds
+                        if ($staleSecs -gt 120) {
+                            # Heartbeat stale > 2 min — agent likely dead
+                            $deadAgents += $roleKey
+                        }
+                    } catch {
+                        # Can't parse heartbeat — treat as no heartbeat
+                    }
+                } elseif ($elapsed -gt 120) {
+                    # No heartbeat after 2 min — agent may have failed to start
+                    $deadAgents += $roleKey
+                }
             }
 
+            # Show status
             $remaining = @($pendingRoles | Where-Object { $completed -notcontains $_ })
             if ($remaining.Count -gt 0) {
-                Write-Host "    Waiting ($($elapsed)s): $($completed.Count)/$($pendingRoles.Count) done `u{2014} remaining: $($remaining -join ', ')" -ForegroundColor Gray
+                $statusParts = @()
+                foreach ($rk in $remaining) {
+                    if ($deadAgents -contains $rk) {
+                        $statusParts += "💀$rk"
+                    } else {
+                        $statusParts += "🔄$rk"
+                    }
+                }
+                Write-Host "    Waiting ($($elapsed)s): $($completed.Count)/$($pendingRoles.Count) done — $($statusParts -join ' ')" -ForegroundColor Gray
             }
 
             if ($completed.Count -eq $pendingRoles.Count) { break }
 
+            # If all remaining agents are dead, stop waiting
+            if ($deadAgents.Count -eq $remaining.Count -and $remaining.Count -gt 0 -and $elapsed -gt 120) {
+                Write-Host "    ⚠️  All remaining agents appear dead (stale heartbeat >2min):" -ForegroundColor Red
+                foreach ($da in $deadAgents) {
+                    Write-Host "      💀 $da — no recent heartbeat, task incomplete" -ForegroundColor Red
+                }
+                Write-Host "    Run 'team launch $teamName $($deadAgents[0])' to retry." -ForegroundColor Yellow
+                break
+            }
+
             # Timeout per wave: 15 minutes
             if ($elapsed -gt 900) {
-                Write-Host "    `u{26A0}`u{FE0F}  Wave timed out after 15 minutes" -ForegroundColor Red
+                Write-Host "    ⚠️  Wave timed out after 15 minutes" -ForegroundColor Red
                 break
             }
         }
