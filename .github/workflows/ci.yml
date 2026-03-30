@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          Install-Module Pester -MinimumVersion 5.0 -Force -Scope CurrentUser
+
+      - name: Install tool to ~/.agent-teams
+        shell: pwsh
+        run: |
+          .\install.ps1
+
+      - name: Run unit tests
+        shell: pwsh
+        run: |
+          Import-Module Pester -MinimumVersion 5.0
+          $config = New-PesterConfiguration
+          $config.Run.Path = "tests"
+          $config.Output.Verbosity = "Detailed"
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputFormat = "JUnitXml"
+          $config.TestResult.OutputPath = "test-results.xml"
+          Invoke-Pester -Configuration $config
+
+      - name: Validate preset JSON files
+        shell: pwsh
+        run: |
+          $errors = 0
+          Get-ChildItem templates/presets -Filter "*.json" | ForEach-Object {
+            try {
+              $null = Get-Content $_.FullName -Raw | ConvertFrom-Json
+              Write-Host "✅ $($_.Name)" -ForegroundColor Green
+            } catch {
+              Write-Host "❌ $($_.Name): $_" -ForegroundColor Red
+              $errors++
+            }
+          }
+          if ($errors -gt 0) { exit 1 }
+
+      - name: Validate templates exist
+        shell: pwsh
+        run: |
+          $required = @("templates/protocol.md", "templates/role.md")
+          $missing = $required | Where-Object { -not (Test-Path $_) }
+          if ($missing) {
+            Write-Host "❌ Missing templates: $($missing -join ', ')" -ForegroundColor Red
+            exit 1
+          }
+          Write-Host "✅ All templates present" -ForegroundColor Green
+
+      - name: PowerShell syntax check
+        shell: pwsh
+        run: |
+          $errors = [System.Management.Automation.PSParser]::Tokenize(
+            (Get-Content team.ps1 -Raw), [ref]$null
+          ) | Where-Object { $_.Type -eq 'Error' }
+          if ($errors) {
+            Write-Host "❌ Syntax errors in team.ps1:" -ForegroundColor Red
+            $errors | ForEach-Object { Write-Host "  Line $($_.StartLine): $($_.Content)" }
+            exit 1
+          }
+          Write-Host "✅ team.ps1 syntax OK" -ForegroundColor Green
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results.xml
