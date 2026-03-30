@@ -32,9 +32,14 @@ Copy-Item (Join-Path $SourceDir "team.ps1") $TargetDir -Force
 Copy-Item (Join-Path $SourceDir "templates\protocol.md") $TemplatesTarget -Force
 Copy-Item (Join-Path $SourceDir "templates\role.md") $TemplatesTarget -Force
 
+$PresetsTarget = Join-Path $TemplatesTarget "presets"
+New-Item -ItemType Directory -Force -Path $PresetsTarget | Out-Null
+Copy-Item (Join-Path $SourceDir "templates\presets\*") $PresetsTarget -Force
+
 Write-Host "     ✅ team.ps1" -ForegroundColor Green
 Write-Host "     ✅ templates/protocol.md" -ForegroundColor Green
 Write-Host "     ✅ templates/role.md" -ForegroundColor Green
+Write-Host "     ✅ templates/presets/ ($(( Get-ChildItem (Join-Path $SourceDir 'templates\presets\*.json')).Count) presets)" -ForegroundColor Green
 
 # 2. Add to PowerShell profile
 # Always write to $PROFILE (CurrentUserCurrentHost) — this is what `. $PROFILE` loads
