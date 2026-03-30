@@ -14,23 +14,22 @@ Each agent runs in its own terminal tab with a dedicated role, tools, and file o
 
 ```
   ┌──────────────┐
-  │  You (Lead)  │──── team init → team launch
+  │  You (Lead)  │──── team plan → team apply → team launch
   └──────┬───────┘
          │ spawns terminal tabs
-    ┌────┴────┬───────────┐
-    ▼         ▼           ▼
-┌────────┐ ┌────────┐ ┌──────────┐
-│Architect│ │ Coder  │ │ Reviewer │   Each tab = independent Copilot CLI session
-└───┬────┘ └───┬────┘ └────┬─────┘
-    │          │           │
-    ▼          ▼           ▼
-┌─────────────────────────────────┐
-│  .agent-teams/{name}/           │   Shared filesystem = coordination layer
-│  ├── artifacts/   (deliverables)│
-│  ├── mailbox/     (messages)    │
-│  ├── heartbeat/   (liveness)    │
-│  └── tasks.json   (task board)  │
-└─────────────────────────────────┘
+    ┌────┴─────┬────────────┬────────────┐
+    ▼          ▼            ▼            ▼
+┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+│Architect │ │ Backend  │ │ Frontend │ │ Reviewer │  4 independent
+│ designs  │ │ API +    │ │ UI +     │ │ security │  Copilot CLI
+│ the spec │ │ database │ │ routing  │ │ + tests  │  sessions
+└────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘
+     │            │            │             │
+     ▼            ▼            ▼             ▼
+┌──────────────────────────────────────────────────┐
+│  .agent-teams/{name}/                            │  Shared filesystem
+│  tasks.json → artifacts/ → mailbox/ → heartbeat/ │  = coordination layer
+└──────────────────────────────────────────────────┘
 ```
 
 ---
