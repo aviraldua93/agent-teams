@@ -147,6 +147,40 @@ The only shared-write files are:
 - `mailbox/*.inbox` — append-only writes to the appropriate inbox
 - `heartbeat/{your-role-key}.json` — only your own heartbeat file
 
+## File Locking
+
+When editing PROJECT files (not team coordination files), you MUST follow the locking protocol to prevent concurrent write conflicts.
+
+### Which files need locking?
+- **Project source files** (src/, tests/, etc.) — MUST lock before editing
+- **Team coordination files** (tasks.json, heartbeat/, mailbox/) — NO lock needed (protocol handles these)
+- **Your own artifacts** (artifacts/{your-deliverable}.md) — NO lock needed (you own them)
+
+### How to lock
+
+Before editing any project source file:
+
+1. **Check**: Does `locks/{path-with-dashes}.lock` exist?
+   - Path encoding: replace `/` and `\` with `--` (e.g., `src/api.js` → `src--api.js.lock`)
+2. **If unlocked**: Create the lock file:
+   ```json
+   {"agent": "{your-role-key}", "file": "{original-path}", "acquired": "{iso8601}", "ttl_seconds": 300}
+   ```
+3. **Edit the file**
+4. **Release**: Delete the lock file when done
+
+### If the file is locked by another agent:
+1. Wait 15 seconds, check again
+2. Retry up to 4 times (1 minute total)
+3. If still locked after retries: write to `mailbox/lead.inbox` asking for help
+4. If lock is older than its TTL (default 300s): the owning agent likely crashed — steal the lock (overwrite it with your info) and log a warning to mailbox
+
+### Rules:
+- NEVER edit a project file without locking it first
+- ALWAYS release locks when done (delete the lock file)
+- Lock files go in the `locks/` directory, NOT next to the source file
+- TTL default is 300 seconds (5 minutes) — if your edit takes longer, update the lock's `acquired` timestamp
+
 ## Logging
 
 Your session output is logged to `logs/{your-role-key}.log`. Do not read, modify, or delete log files. Logging is handled by the orchestrator. If you need to record notes for yourself, use your mailbox or heartbeat — not the log file.

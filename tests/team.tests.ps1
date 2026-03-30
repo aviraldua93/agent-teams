@@ -31,6 +31,7 @@ Describe "team init" {
         ".agent-teams\test-team\heartbeat" | Should -Exist
         ".agent-teams\test-team\logs" | Should -Exist
         ".agent-teams\test-team\.launch" | Should -Exist
+        ".agent-teams\test-team\locks" | Should -Exist
     }
 
     It "stores correct manifest data" {

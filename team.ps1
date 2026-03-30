@@ -224,7 +224,7 @@ function Invoke-Init([string]$teamName, [string]$scenario, [string]$templateName
     }
 
     # Scaffold directories (v0.2: added roles/, heartbeat/, logs/)
-    foreach ($sub in @("artifacts", "mailbox", ".launch", "roles", "heartbeat", "logs")) {
+    foreach ($sub in @("artifacts", "mailbox", "roles", "heartbeat", "logs", ".launch", "locks")) {
         New-Item -ItemType Directory -Force -Path (Join-Path $dir $sub) | Out-Null
     }
 
@@ -1904,14 +1904,24 @@ function Invoke-Unblock([string]$teamName) {
     }
 
     $now = Get-Date -Format "o"
+    $leadInboxPath = Join-Path $mailboxDir "lead.inbox"
     foreach ($task in $unblocked) {
-        $inboxPath = Join-Path $mailboxDir "$($task.assigned_to).inbox"
-        $msg = @"
+        # Notify lead
+        $leadMsg = @"
+[FROM: system] [TIME: $now]
+Task "$($task.id)" unblocked and assigned to $($task.assigned_to). Dependencies resolved.
+---
+"@
+        Add-Content $leadInboxPath $leadMsg -Encoding UTF8
+
+        # Notify assigned agent
+        $agentInboxPath = Join-Path $mailboxDir "$($task.assigned_to).inbox"
+        $agentMsg = @"
 [FROM: lead] [TIME: $now]
 Your task "$($task.id)" is now unblocked. Dependencies complete. Begin work.
 ---
 "@
-        Add-Content $inboxPath $msg -Encoding UTF8
+        Add-Content $agentInboxPath $agentMsg -Encoding UTF8
         Append-Event $teamDir "task_unblocked" $task.id $task.assigned_to ""
         Write-OrchestratorLog $teamDir "Unblocked task $($task.id) for $($task.assigned_to)"
     }
