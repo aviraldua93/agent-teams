@@ -254,6 +254,34 @@ function Invoke-Init([string]$teamName, [string]$scenario, [string]$templateName
         Set-Content (Join-Path $dir "protocol.md") $protocol -Encoding UTF8
     }
 
+    # Create AGENTS.md at project root (Copilot CLI auto-loads this)
+    $agentsMdPath = Join-Path (Get-Location).Path "AGENTS.md"
+    if (-not (Test-Path $agentsMdPath)) {
+        $agentsMd = @"
+# Agent Teams — Lead Session Protocol
+
+This project uses [agent-teams](https://github.com/aviraldua93/agent-teams) for multi-agent coordination.
+
+## If you are the lead session:
+
+1. **Plan first**: Run ``team plan "scenario"`` — do NOT explore the codebase yourself.
+2. **Review the plan**: Run ``team apply`` to see feasibility, roles, and tasks.
+3. **Launch agents**: Run ``team launch <name>`` — agents work in separate terminal tabs.
+4. **Monitor**: Run ``team status <name>`` or ``team watch <name>``.
+5. **If an agent dies**: Run ``team launch <name> <role>`` to retry. Do NOT do the work yourself.
+
+## Rules for the lead:
+- You are the ORCHESTRATOR, not an IC. Your context is for coordination only.
+- NEVER absorb agent work into your context. If an agent fails, relaunch it.
+- NEVER explore the codebase deeply yourself. Spawn sub-agents or use team plan.
+- Keep your context lean: run commands, read status, make decisions.
+
+## If you are a team agent:
+Read ``.agent-teams/<team>/protocol.md`` for your operating rules.
+"@
+        Set-Content $agentsMdPath $agentsMd -Encoding UTF8
+    }
+
     Write-Host ""
     Write-Host "  ✅ Team '$teamName' created" -ForegroundColor Green
     Write-Host "  📁 $dir" -ForegroundColor Gray
@@ -867,14 +895,55 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
 
             if ($completed.Count -ge $activeRoles.Count) { break }
 
-            # If all remaining agents are dead, stop waiting
+            # If all remaining agents are dead, auto-retry them
             if ($deadAgents.Count -eq $remaining.Count -and $remaining.Count -gt 0 -and $elapsed -gt 120) {
-                Write-Host "    ⚠️  All remaining agents appear dead (stale heartbeat >2min):" -ForegroundColor Red
                 foreach ($da in $deadAgents) {
-                    Write-Host "      💀 $da — no recent heartbeat, task incomplete" -ForegroundColor Red
+                    # Check poison pill (max retries)
+                    $attemptsFile = Join-Path $launchDir "$da.attempts"
+                    $attempts = 0
+                    if (Test-Path $attemptsFile) { $attempts = [int](Get-Content $attemptsFile -Raw -ErrorAction SilentlyContinue) }
+                    $attempts++
+                    Set-Content $attemptsFile $attempts -Encoding UTF8
+                    
+                    if ($attempts -gt 3) {
+                        Write-Host "    ☠️  $da — exceeded max retries (3), marking tasks as failed" -ForegroundColor Red
+                        Write-OrchestratorLog $teamDir "Role $da exceeded max retries, marking failed"
+                        $tasksObj = Get-Tasks $teamName
+                        if ($tasksObj) {
+                            foreach ($t in $tasksObj.tasks) {
+                                if ($t.assigned_to -eq $da -and $t.status -ne "done") {
+                                    $t.status = "failed"
+                                }
+                            }
+                            Save-Tasks $teamName $tasksObj
+                        }
+                        Append-Event $teamDir "task_failed" "" $da "max retries exceeded"
+                        # Mark as completed so wave can advance
+                        Set-Content $doneFiles[$da] "failed-$(Get-Date -Format 'o')" -Encoding UTF8
+                        $completed += $da
+                        continue
+                    }
+                    
+                    Write-Host "    🔄 $da — relaunching (attempt $attempts/3)" -ForegroundColor Yellow
+                    Write-OrchestratorLog $teamDir "Relaunching $da (attempt $attempts)"
+                    Append-Event $teamDir "agent_relaunch" "" $da "attempt $attempts"
+                    
+                    # Clear old heartbeat and .done
+                    Remove-Item (Join-Path $teamDir "heartbeat\$da.json") -Force -ErrorAction SilentlyContinue
+                    Remove-Item $doneFiles[$da] -Force -ErrorAction SilentlyContinue
+                    
+                    # Relaunch
+                    $roleProp = $manifest.roles.PSObject.Properties | Where-Object { $_.Name -eq $da }
+                    if ($roleProp) {
+                        New-RoleLauncher -TeamName $teamName -RoleKey $da -Role $roleProp.Value `
+                            -ProjectDir $projectDir -TeamDir $teamDir -DoneFile $doneFiles[$da]
+                        Write-Host "    🟢 $da relaunched" -ForegroundColor Green
+                    }
                 }
-                Write-Host "    Run 'team launch $teamName $($deadAgents[0])' to retry." -ForegroundColor Yellow
-                break
+                
+                # Reset the wave timer since we just relaunched
+                $startTime = Get-Date
+                # DON'T break — continue the wait loop for the relaunched agents
             }
 
             # Timeout per wave: 15 minutes (but extend if agents are alive)
