@@ -329,6 +329,7 @@ Describe "template init" {
         @{ Name = "data-science";   ExpectedRoles = 4; ExpectedTasks = 5 }
         @{ Name = "ml-experiment";  ExpectedRoles = 4; ExpectedTasks = 4 }
         @{ Name = "data-pipeline";  ExpectedRoles = 4; ExpectedTasks = 4 }
+        @{ Name = "doc-review";     ExpectedRoles = 5; ExpectedTasks = 5 }
     )
 
     It "template '<Name>' creates <ExpectedRoles> roles and <ExpectedTasks> tasks" -TestCases $templateCases {
