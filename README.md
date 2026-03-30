@@ -1,8 +1,6 @@
 # Agent Teams
 
-**Coordinate multiple GitHub Copilot CLI sessions as a team of specialists.**
-
-Each agent runs in its own terminal tab with a dedicated role, tools, and file ownership. Agents coordinate through shared files — no APIs, no servers, no dependencies. Just PowerShell.
+**One command. Three terminal tabs. A team of AI agents building your feature while you watch.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6)
@@ -33,25 +31,28 @@ graph LR
 
 ---
 
-## Quick Start
+## The Problem
 
-Describe what you want. The planner assesses feasibility, designs roles, and generates a team plan.
+You're using one Copilot session for everything — design, code, tests, review — in one long conversation that bleeds context and loses focus. That's like having one person do an entire sprint alone.
+
+Real work is parallel. Real work has specialists. Real work has handoffs.
+
+## The Solution
+
+Describe what you want. Agent Teams spawns a team of Copilot CLI sessions — each in its own terminal tab, each with a dedicated role, each writing to files it owns. No API server. No framework. No dependencies. Just the filesystem.
 
 ```powershell
-# From your project directory:
 team plan "Build a login page with email/password auth"
 ```
 
-Three assessors (tech, scope, risk) explore your codebase in parallel, then a synthesizer produces a plan with roles, tasks, acceptance criteria, and a **feasibility verdict** (`go` / `risky` / `no-go`). Review and apply:
+Three assessors (tech, scope, risk) explore your codebase in parallel. A synthesizer produces a plan with roles, tasks, acceptance criteria, and a feasibility verdict — `go`, `risky`, or `no-go` — before a single token is spent on implementation.
 
 ```powershell
-team apply     # shows the plan, asks for confirmation, creates the team
+team apply       # review the plan, confirm, create the team
 team launch login-page
 ```
 
-The orchestrator spawns agents in **waves** — first the roles with no dependencies, waits for them to finish, auto-unblocks downstream tasks, then spawns the next wave. Repeat until done.
-
-Monitor progress from your lead session:
+Three tabs open. An architect designs the spec. A coder implements from it. A reviewer validates the result. Each wave starts automatically when the previous one finishes.
 
 ```powershell
 team status login-page
@@ -78,78 +79,102 @@ team status login-page
   Progress: 1/3 tasks done
 ```
 
-Or watch it live with auto-refresh:
+Or watch it live:
 
 ```powershell
-team watch login-page    # refreshes every 3s, Ctrl+C to stop
+team watch login-page    # auto-refreshes every 3s
 ```
 
-<details>
-<summary><b>Manual setup (without planner)</b></summary>
-
-You can also skip the planner and use templates directly:
-
-```powershell
-team init login-page "Build a login page with email/password auth" feature
-team launch login-page
-```
-
-</details>
+You don't babysit. You don't copy-paste between windows. You don't manually check which task is next. The orchestrator handles all of it — wave by wave, dependency by dependency — until every task is done.
 
 ---
 
-## Why?
+## How It Works (30 seconds)
 
-A single Copilot CLI session handles small tasks well. Bigger work needs parallel specialists.
+```mermaid
+graph TB
+    subgraph Planning ["1 · PLAN"]
+        P1["🔧 Tech Assessor"] --> S["📋 Synthesizer"]
+        P2["📏 Scope Assessor"] --> S
+        P3["⚠️ Risk Assessor"] --> S
+        S --> Verdict{"go / risky / no-go"}
+    end
 
-| | Single Session | Agent Teams |
-|---|---|---|
-| **Scope** | One conversation, one context | Multiple specialists, isolated contexts |
-| **Parallelism** | Sequential (design → code → review) | Parallel tabs, dependency-aware tasks |
-| **Coordination** | Copy-paste between windows | Automatic via shared files + protocol |
-| **Monitoring** | Check each tab manually | `team status` dashboard with heartbeats |
-| **Reproducibility** | Ad-hoc prompts | Role files + task definitions = repeatable |
+    subgraph Execution ["2 · EXECUTE"]
+        Verdict -->|go| W1["Wave 1: Architect"]
+        W1 -->|done → unblock| W2["Wave 2: Coder + Tester"]
+        W2 -->|done → unblock| W3["Wave 3: Reviewer"]
+    end
 
----
+    subgraph Coordination ["3 · COORDINATE"]
+        FS[".agent-teams/"]
+        FS --- Tasks["tasks.json"]
+        FS --- Roles["roles/*.md"]
+        FS --- Art["artifacts/"]
+        FS --- HB["heartbeat/*.json"]
+        FS --- MB["mailbox/*.inbox"]
+    end
 
-## Install
+    W1 --> FS
+    W2 --> FS
+    W3 --> FS
 
-```powershell
-git clone https://github.com/aviraldua93/agent-teams.git
-cd agent-teams
-.\install.ps1    # copies to ~/.agent-teams/, adds `team` to your profile
+    style Planning fill:#6c5ce7,color:#fff,stroke:none
+    style Execution fill:#00b894,color:#fff,stroke:none
+    style Coordination fill:#2d3436,color:#fff,stroke:#636e72
 ```
 
-Restart your terminal (or `. $PROFILE`).
-
-**Requirements:** [GitHub Copilot CLI](https://docs.github.com/copilot/how-tos/copilot-cli) (`copilot`), [Windows Terminal](https://aka.ms/terminal) (`wt`), PowerShell 7+ (`pwsh`).
+Every agent reads from the same directory. Every agent writes only to files it owns. The filesystem is the shared memory — no server, no API, no message broker. Files in, files out.
 
 ---
 
-## 📋 Templates
+## Templates
 
-Eight preset templates so you don't have to define roles and tasks from scratch.
+Eleven preset templates across three domains. Pick one, customize it, or let the planner compose a team from scratch.
 
-| Template | Roles | Tasks | Use Case |
-|----------|-------|-------|----------|
-| **`feature`** | architect, coder, reviewer | design → implement → review | Standard feature development |
-| **`fullstack`** | architect, backend, frontend, reviewer | design → backend + frontend → review | Full-stack features spanning API + UI |
-| **`sprint`** | pm, architect, coder, qa, reviewer | scope → design → implement → QA + review | Full sprint team with PM and QA |
-| **`bugfix`** | investigator, fixer, reviewer | investigate → fix → review | Bug investigation and patching |
-| **`refactor`** | explorer, refactorer, tester, reviewer | map → refactor → test → review | Safe codebase refactoring |
-| **`research`** | researcher ×3, synthesizer | research ×3 → synthesize | Parallel investigation with synthesis |
-| **`ship`** | release-manager, qa, reviewer | QA + review → ship | Release workflow with QA gate |
-| **`audit`** | security, perf, quality, synthesizer | 3 parallel audits → synthesize | Parallel code audit with prioritized findings |
+### 🔧 Engineering
+
+| Template | Agents | Flow | Use Case |
+|----------|--------|------|----------|
+| **`feature`** | architect, coder, reviewer | design → implement + tests → review | Standard feature development |
+| **`fullstack`** | architect, backend, frontend, reviewer | design → backend + frontend → review | Full-stack with API contract |
+| **`sprint`** | pm, architect, coder, qa, reviewer | scope → design → implement → QA + review | Full sprint team with PM |
+| **`bugfix`** | investigator, fixer, reviewer | investigate → fix → review | Root cause → patch → verify |
+| **`refactor`** | explorer, coder, tester, reviewer | explore → implement + test → review | Safe restructuring with coverage |
+| **`ship`** | release-manager, qa, reviewer | QA + review → ship | Release coordination |
+
+### 📊 Data Science
+
+| Template | Agents | Flow | Use Case |
+|----------|--------|------|----------|
+| **`data-science`** | data-engineer, modeler, evaluator, reporter | profile → features → train → evaluate → report | End-to-end ML pipeline |
+| **`ml-experiment`** | experimenter ×3, synthesizer | 3 parallel experiments → synthesize | Model comparison (RF vs XGBoost vs NN) |
+| **`data-pipeline`** | extractor, transformer, loader, validator | extract → transform → load → validate | ETL workflows |
+
+### 🔍 Operations
+
+| Template | Agents | Flow | Use Case |
+|----------|--------|------|----------|
+| **`research`** | researcher ×3, synthesizer | 3 parallel investigations → synthesize | Multi-angle analysis |
+| **`audit`** | security, perf, quality, synthesizer | 3 parallel audits → synthesize | Code audit with severity ratings |
 
 ```powershell
+# Engineering
 team init auth-flow "Add OAuth2 login flow" feature
-team init flaky-tests "Tests failing intermittently on CI" bugfix
-team init api-redesign "Migrate REST endpoints to v2 schema" refactor
-team init framework-eval "Evaluate React vs Svelte vs Solid" research
 team init dashboard "Build analytics dashboard with API" fullstack
-team init v2-release "Ship v2.0 to production" ship
 team init q4-sprint "Q4 feature: user notifications" sprint
-team init security-review "Audit before SOC2 compliance" audit
+team init flaky-tests "Tests failing intermittently on CI" bugfix
+team init api-v2 "Migrate REST endpoints to v2 schema" refactor
+team init v2-release "Ship v2.0 to production" ship
+
+# Data Science
+team init churn-model "Predict customer churn from usage data" data-science
+team init model-bake-off "Compare approaches for sentiment analysis" ml-experiment
+team init ingest-pipeline "ETL from S3 to warehouse" data-pipeline
+
+# Operations
+team init framework-eval "Evaluate React vs Svelte vs Solid" research
+team init soc2-prep "Audit before SOC2 compliance review" audit
 ```
 
 <details>
@@ -178,6 +203,50 @@ graph LR
     C --> R["🔍 Reviewer"]
 ```
 
+#### bugfix
+```mermaid
+graph LR
+    I["🔎 Investigator"] --> F["🔧 Fixer"] --> R["🔍 Reviewer"]
+```
+
+#### refactor
+```mermaid
+graph LR
+    E["🗺️ Explorer"] --> C["💻 Coder"]
+    E --> T["🧪 Tester"]
+    C --> R["🔍 Reviewer"]
+    T --> R
+```
+
+#### ship
+```mermaid
+graph LR
+    QA["🧪 QA"] --> RM["📦 Release Manager"]
+    R["🔍 Reviewer"] --> RM
+```
+
+#### data-science
+```mermaid
+graph LR
+    DE["📊 Data Engineer"] --> M["🤖 Modeler"]
+    M --> E["📏 Evaluator"]
+    E --> R["📝 Reporter"]
+```
+
+#### ml-experiment
+```mermaid
+graph LR
+    E1["🧪 Experimenter 1"] --> Syn["📊 Synthesizer"]
+    E2["🧪 Experimenter 2"] --> Syn
+    E3["🧪 Experimenter 3"] --> Syn
+```
+
+#### data-pipeline
+```mermaid
+graph LR
+    Ex["📥 Extractor"] --> T["🔄 Transformer"] --> L["📤 Loader"] --> V["✅ Validator"]
+```
+
 #### audit
 ```mermaid
 graph LR
@@ -194,85 +263,60 @@ graph LR
     R3["🔍 Researcher 3"] --> Syn
 ```
 
-#### ship
-```mermaid
-graph LR
-    QA["🧪 QA"] --> RM["📦 Release Manager"]
-    R["🔍 Reviewer"] --> RM
-```
-
-#### bugfix
-```mermaid
-graph LR
-    I["🔎 Investigator"] --> F["🔧 Fixer"] --> R["🔍 Reviewer"]
-```
-
-#### refactor
-```mermaid
-graph LR
-    E["🗺️ Explorer"] --> C["💻 Coder"]
-    E --> T["🧪 Tester"]
-    C --> R["🔍 Reviewer"]
-    T --> R
-```
-
 </details>
 
 Templates are JSON files in `templates/presets/`. Create your own or edit the built-ins.
 
 ---
 
-## ⚙️ How It Works
+## What Makes It Different
 
-### Team Directory Structure
-
-```
-.agent-teams/{name}/
-├── manifest.json        # Team config: roles, project dir, scenario
-├── protocol.md          # Coordination rules every agent reads on startup
-├── tasks.json           # Shared task board with dependencies
-├── roles/               # Per-role Markdown files (YAML frontmatter)
-│   ├── architect.md
-│   ├── coder.md
-│   └── reviewer.md
-├── artifacts/           # Deliverables (each role owns specific files)
-├── mailbox/             # Append-only message files (inter-agent messaging)
-│   └── lead.inbox       # Activity log for the lead
-├── heartbeat/           # Per-agent liveness signals (JSON)
-├── logs/                # Session output (via Start-Transcript)
-└── .launch/             # Generated prompts + launcher scripts
-```
-
-### Coordination Flow
-
-1. `team plan` spawns 3 assessors in parallel (tech, scope, risk), waits for all to finish, then spawns a synthesizer that produces `proposed-plan.json` with a feasibility gate (`go` / `risky` / `no-go`), roles, tasks, and acceptance criteria
-2. `team apply` shows the plan for review and creates the team (roles, tasks, acceptance criteria)
-3. `team init` (alternative) scaffolds the team directory from a template or manually
-4. `team launch` runs a **wave-based orchestrator**: finds roles with pending tasks → spawns them in parallel → waits for completion using **3-probe detection** (`.done` signal file → task evidence in `tasks.json` → heartbeat liveness) → runs `unblock` to transition blocked tasks → spawns next wave
-5. Each agent reads `protocol.md` → `roles/{key}.md` → `tasks.json`
-6. Agents claim tasks, write deliverables to `artifacts/`, message via `mailbox/`
-7. Agents update `heartbeat/{key}.json` so the lead can monitor liveness
-8. Lead runs `team status` or `team watch` to see the dashboard
-
-### Mailbox Protocol
-
-Agents communicate through append-only inbox files. Messages are never deleted or edited.
-
-```
-[2025-07-17T10:32:00Z] architect → lead
-Design spec written to artifacts/design.md. Ready for implementation.
----
-```
-
-### Heartbeat Monitoring
-
-Each agent maintains a `heartbeat/{key}.json` file with its current status, active task, and last-active timestamp. The `team status` dashboard reads these to show 🟢 active, 🟡 idle, or 🔴 unresponsive agents.
+| | Agent Teams | Single Copilot Session | Claude Code Agent Teams | CrewAI / LangGraph |
+|---|---|---|---|---|
+| **Parallelism** | Multiple tabs, real concurrency | One conversation, sequential | Multiple worktrees, parallel | Python processes, parallel |
+| **Coordination** | Filesystem (zero infra) | Manual copy-paste | Git branches + worktrees | API server + message queue |
+| **Dependencies** | Zero. PowerShell only. | N/A | Claude Code CLI | Python + pip + API keys |
+| **Planning** | AI feasibility assessment before execution | You plan manually | Manual team config | Programmatic agent definition |
+| **Failure handling** | 3-probe detection + auto-recovery | You notice and fix | Worktree isolation | Framework-dependent |
+| **Setup** | `team init` + `team launch` | Open terminal, start typing | Create `.claude/team.yml` | Write Python code |
+| **Customization** | Edit Markdown role files | Change your prompt | YAML config | Python classes |
 
 ---
 
-## 📝 Role Files
+## Proven in Production
 
-Each role gets a Markdown file with YAML frontmatter defining its scope, tool permissions, and file ownership. Inspired by [gstack](https://github.com/nichochar/gstack)'s SKILL.md pattern.
+Real E2E runs, fully autonomous — no human intervention after `team launch`:
+
+**Calculator CLI** — 3 agents, 4 tasks, ~5 minutes. Architect designed the spec, coder implemented TypeScript + tests, reviewer validated. Complete Node.js CLI app from zero.
+
+**Iris ML Pipeline** — 4 agents, 5 tasks. Data engineer profiled the dataset, modeler trained 3 classifiers, evaluator ran precision/recall/F1, reporter generated the executive summary. End-to-end data science from a one-line description.
+
+**Feasibility catches real problems.** The assessment phase flagged ESM/CJS module mismatches and concurrent npm install race conditions — before wasting tokens on implementation that would fail.
+
+---
+
+## Under the Hood
+
+<details>
+<summary><b>📁 Coordination Protocol</b></summary>
+
+Every agent reads `protocol.md` on startup. The rules:
+
+1. **Startup sequence:** protocol.md → role file → manifest → tasks.json. Execute in dependency order.
+2. **Task completion (crash-safe):** Update tasks.json status → append to mailbox → update heartbeat. Always in this order.
+3. **File ownership:** Only write to files listed in your role's `owns_files`. No exceptions.
+4. **Mailbox:** Append-only. Never overwrite, never delete. Consistency without locks.
+5. **Shared-write files:** tasks.json (your tasks only), mailbox/*.inbox (append-only), heartbeat/{your-key}.json (your heartbeat only).
+6. **If blocked:** Set heartbeat to `blocked`, poll tasks.json every 30s, check mailbox for unblock notifications.
+
+Full protocol: [`templates/protocol.md`](templates/protocol.md)
+
+</details>
+
+<details>
+<summary><b>📝 Role Files (YAML Frontmatter)</b></summary>
+
+Each role is a Markdown file with YAML frontmatter defining scope, tools, and file ownership. Inspired by [gstack](https://github.com/nichochar/gstack)'s SKILL.md pattern.
 
 ```yaml
 ---
@@ -293,26 +337,118 @@ reads_from:
 ---
 
 ## Instructions
-You are the Architect. Your job is to explore the codebase,
+You are the Architect. Explore the codebase,
 design the spec, and write it to artifacts/design.md.
 ```
 
-Edit `roles/{key}.md` to customize instructions, tool permissions, and sub-agent policies per role.
+Each role can also spawn sub-agents (explore, task, general-purpose, code-review) — up to 5 concurrent, max depth 2.
 
-### Two-Tier Agent Architecture
+</details>
 
-Each team session can spawn its own sub-agents internally. Max depth = 2.
+<details>
+<summary><b>🌊 Wave Orchestration</b></summary>
+
+`team launch` runs a wave-based orchestrator:
+
+1. **Scan** — find roles with `pending` tasks (no unmet dependencies)
+2. **Spawn** — open a terminal tab per role, all in parallel
+3. **Wait** — poll for completion using 3-probe detection
+4. **Unblock** — transition `blocked` tasks to `pending` when dependencies are met
+5. **Repeat** — spawn the next wave. Continue until all tasks are `done`.
 
 ```
-Lead (your session)
-├── Team Session: Architect  → spawns explore sub-agents
-├── Team Session: Coder      → spawns explore + task + general-purpose sub-agents
-└── Team Session: Reviewer   → spawns explore + code-review sub-agents
+Wave 1: [architect]          → design spec
+Wave 2: [coder, tester]      → implement + tests (parallel)
+Wave 3: [reviewer]           → final review
 ```
 
+No manual intervention between waves.
+
+</details>
+
+<details>
+<summary><b>🔍 3-Probe Failure Detection</b></summary>
+
+An agent might crash, hang, or silently fail. The orchestrator doesn't guess — it checks three independent signals:
+
+1. **`.done` signal file** — written by the launcher script when the Copilot process exits
+2. **Task evidence** — did tasks.json actually get updated to `done`?
+3. **Heartbeat liveness** — is `heartbeat/{key}.json` still being updated?
+
+If the signal says done but the task isn't updated → evidence-based recovery. If the heartbeat flatlines → the agent crashed. Three probes, three independent signals, one reliable verdict.
+
+</details>
+
+<details>
+<summary><b>🛡️ Feasibility Assessment</b></summary>
+
+`team plan` doesn't just plan — it evaluates whether the task is even doable:
+
+1. **Tech Assessor** — scans the codebase for tech stack, dependencies, potential conflicts
+2. **Scope Assessor** — evaluates if the task is appropriately sized for the team
+3. **Risk Assessor** — identifies blockers, unknowns, and edge cases
+
+All three run in parallel. A synthesizer combines their findings into a verdict:
+
+- **`go`** — clear path forward, proceed
+- **`risky`** — concerns flagged, review before proceeding
+- **`no-go`** — fundamental blockers identified, don't waste tokens
+
+Each assessor writes to an artifacts file. The synthesizer reads all three and produces `proposed-plan.json`.
+
+</details>
+
+<details>
+<summary><b>✅ Acceptance Criteria</b></summary>
+
+Tasks can have acceptance criteria — hard requirements that must be met before a task is considered done.
+
+```json
+{
+  "id": "implement",
+  "title": "Build the login form",
+  "assignee": "coder",
+  "acceptance_criteria": [
+    "Email and password fields with validation",
+    "Submit button calls /api/auth/login",
+    "Error messages displayed inline",
+    "Unit tests for validation logic"
+  ]
+}
+```
+
+Agents are instructed to verify every criterion before marking a task complete. The reviewer validates them in the next wave.
+
+</details>
+
+<details>
+<summary><b>📬 Mailbox & Heartbeat</b></summary>
+
+**Mailbox** — append-only message log. Agents never read each other's messages directly; they write to `mailbox/lead.inbox` so the lead can track activity.
+
+```
+[2025-07-17T10:32:00Z] architect → lead
+Design spec written to artifacts/design.md. Ready for implementation.
 ---
+```
 
-## 🛠️ Commands
+**Heartbeat** — each agent maintains `heartbeat/{key}.json`:
+
+```json
+{
+  "role": "architect",
+  "status": "active",
+  "current_task": "design",
+  "last_active": "2025-07-17T10:32:00Z"
+}
+```
+
+The status dashboard reads these: 🟢 active, 🟡 idle, 🔴 unresponsive.
+
+</details>
+
+<details>
+<summary><b>🛠️ All Commands</b></summary>
 
 | Command | Description |
 |---------|-------------|
@@ -321,72 +457,52 @@ Lead (your session)
 | `team init <name> <scenario> [template]` | Create a team (optionally from a preset template) |
 | `team role <name> <key> <desc> [model]` | Add a role manually (generates role file) |
 | `team task <name> <id> <title> <role> [deps]` | Add a task (deps: comma-separated task IDs) |
-| `team launch <name>` | Orchestrate: spawn waves, wait for completion, unblock, repeat |
+| `team launch <name>` | Orchestrate: spawn waves, wait, unblock, repeat |
 | `team launch <name> <role>` | Spawn a single role (manual, non-blocking) |
-| `team unblock <name>` | Transition blocked tasks to pending when deps are met |
+| `team unblock <name>` | Transition blocked tasks when deps are met |
+| `team stop <name>` | Stop all agents and reset tasks |
 | `team status <name>` | Dashboard with heartbeats and task progress |
 | `team watch <name>` | Live auto-refreshing dashboard (3s interval) |
 | `team list` | List all teams |
 | `team clean <name>` | Remove a team and its directory |
 
-### Manual Setup (Without Templates or Planner)
+</details>
 
-```powershell
-team init calculator "Build a calculator CLI"
+---
 
-team role calculator architect "Designs the spec and file structure" claude-sonnet-4
-team role calculator coder "Implements code from spec" claude-sonnet-4
-team role calculator reviewer "Reviews for correctness and edge cases"
+## Roadmap
 
-team task calculator design "Design the architecture" architect
-team task calculator implement "Build the code" coder design
-team task calculator review "Review the implementation" reviewer implement
-
-team launch calculator
+```
+v0.5 ✅        v0.6           v0.7              v0.8            v0.9            v1.0
+current     ─► polish     ─► feedback loops ─► context eng  ─► smart plan  ─► production
+                               gen ↔ eval       checkpoints    role library    cross-platform
+                               structured       auto-resume    codebase-aware  file locking
+                               grading          handoffs       planner         web dashboard
 ```
 
----
+**v0.5** (now) — Wave orchestration, 11 templates, 3-probe failure detection, feasibility assessment, 43 unit tests, CI pipeline.
 
-## 🧭 Design Principles
+**v0.7** (the big one) — Generator ↔ Evaluator loops. Reviewer creates fix tasks, orchestrator runs another wave. Iterative refinement until quality thresholds pass.
 
-From the [Multi-Agent Playbook](https://github.com/aviraldua93/multi-agent-playbook):
+**v0.9** — Smart Planning. Planner composes custom teams from a 30+ role library based on codebase analysis. Templates become shortcuts; roles become atoms.
 
-1. **Docs-as-Bus** — Agents coordinate through files, not messages passed through an orchestrator. The filesystem IS the shared memory.
-2. **File Ownership** — Each role owns specific files. No two agents write to the same file. Ever.
-3. **Append-Only Mailbox** — Messages are never deleted or edited. Consistency without locks.
-4. **Max 3 Deliverables** — No agent has more than 3 tasks. Split the work if needed.
-5. **Wave Ordering** — Explore → Implement → Review → Validate → Ship.
+**v1.0** — Cross-platform. Bun rewrite → single binary for Windows, macOS, Linux. File locking, web dashboard, cost tracking.
 
-### Auto-Filed Issues
-
-Agents are instructed to auto-file GitHub issues on [`aviraldua93/agent-teams`](https://github.com/aviraldua93/agent-teams) when they encounter coordination system bugs (task corruption, heartbeat failures, mailbox conflicts). This dogfoods the tool and surfaces real-world edge cases.
-
-### Known Limitations
-
-- **Orchestrated mode uses `-p` (plain output).** When `team launch` runs the full orchestrator, agents are spawned with `copilot -p` (non-interactive) so the process exits on completion and triggers the `.done` signal file. Single-role launch (`team launch <name> <role>`) uses `-i` (interactive TUI) instead.
+Full roadmap: [ROADMAP.md](ROADMAP.md)
 
 ---
 
-## 🗺️ Roadmap
+## Install
 
-- [x] `team watch` — live auto-refreshing dashboard
-- [x] Role preset templates (feature, bugfix, refactor, research, fullstack, sprint, ship, audit)
-- [x] Heartbeat liveness monitoring
-- [x] Session logging via `Start-Transcript`
-- [x] Mailbox-based inter-agent messaging
-- [x] YAML frontmatter role files with tool permissions
-- [x] `team plan` / `team apply` — AI-generated planning with 3 assessors + synthesizer
-- [x] Feasibility gate (go / risky / no-go) with confidence scoring
-- [x] Acceptance criteria on tasks (sprint contracts)
-- [x] `team unblock` — auto-transition blocked tasks when deps complete
-- [x] Wave-based orchestrator with 3-probe completion detection
-- [x] Signal-based blocking for `team plan` and `team launch`
-- [ ] TUI for orchestrated mode ([#10](https://github.com/aviraldua93/agent-teams/issues/10))
-- [ ] Data science templates ([#11](https://github.com/aviraldua93/agent-teams/issues/11))
-- [ ] File locking ([#12](https://github.com/aviraldua93/agent-teams/issues/12))
-- [ ] Cross-platform support (Bun rewrite → single binary for Windows/macOS/Linux)
-- [ ] Web dashboard — browser-based live monitoring
-- [ ] Integration with [Conductor](https://github.com/microsoft/conductor) workflows
+```powershell
+git clone https://github.com/aviraldua93/agent-teams.git
+cd agent-teams
+.\install.ps1    # copies to ~/.agent-teams/, adds `team` to your profile
+```
+
+Restart your terminal (or `. $PROFILE`).
+
+**Requirements:** [GitHub Copilot CLI](https://docs.github.com/copilot/how-tos/copilot-cli) (`copilot`), [Windows Terminal](https://aka.ms/terminal) (`wt`), PowerShell 7+ (`pwsh`).
 
 ---
 
