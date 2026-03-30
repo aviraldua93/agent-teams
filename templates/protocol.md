@@ -98,6 +98,12 @@ Your role file (`roles/{your-role-key}.md`) specifies which types are permitted.
 - **Reviewers:** Spawn explore agents to trace code paths and understand impact. Spawn code-review agents for focused file reviews. Spawn task agents to run the test suite. Never rubber-stamp.
 - **Testers:** Spawn task agents to run every test suite. Spawn explore agents to find untested code paths. Never declare "all tests pass" without actually running them.
 
+**NEVER absorb sub-agent work into your own context:**
+- If a sub-agent times out: retry with a smaller, more focused prompt. Split the task.
+- If retry fails: spawn a different sub-agent with reduced scope.
+- If all retries fail: report to `mailbox/lead.inbox` that sub-agent failed. Ask lead for guidance.
+- **NEVER silently do the work yourself.** Your context window is precious. Absorbing IC work into a coordinator's context defeats the entire architecture. Report the failure, let the lead re-assign or split the task.
+
 ## Message Format
 
 When writing to any `mailbox/*.inbox` file, use this format:
