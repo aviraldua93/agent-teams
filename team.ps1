@@ -17,6 +17,7 @@
 $ErrorActionPreference = "Stop"
 $ToolRoot = Join-Path $env:USERPROFILE ".agent-teams"
 $TemplatesDir = Join-Path $ToolRoot "templates"
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -152,9 +153,10 @@ function Format-TimeAgo([string]$isoTime) {
 # ── init ────────────────────────────────────────────────────────────────────
 # Creates the team directory scaffold with all v0.2 directories:
 #   artifacts/, mailbox/, .launch/, roles/, heartbeat/, logs/
-function Invoke-Init([string]$teamName, [string]$scenario) {
+function Invoke-Init([string]$teamName, [string]$scenario, [string]$templateName) {
     if (-not $teamName -or -not $scenario) {
-        Write-Host "  Usage: team init <name> <scenario>" -ForegroundColor Yellow
+        Write-Host "  Usage: team init <name> <scenario> [template]" -ForegroundColor Yellow
+        Write-Host "  Templates: feature, research, bugfix, refactor, fullstack" -ForegroundColor Gray
         return
     }
 
@@ -193,6 +195,46 @@ function Invoke-Init([string]$teamName, [string]$scenario) {
     Write-Host "  ✅ Team '$teamName' created" -ForegroundColor Green
     Write-Host "  📁 $dir" -ForegroundColor Gray
     Write-Host "  📂 Project: $((Get-Location).Path)" -ForegroundColor Gray
+
+    # ── Apply template if specified ────────────────────────────────────────
+    if ($templateName) {
+        $presetPath = Join-Path $ToolRoot "templates\presets\$templateName.json"
+        if (-not (Test-Path $presetPath)) {
+            $presetPath = Join-Path $ScriptDir "templates\presets\$templateName.json"
+        }
+        if (-not (Test-Path $presetPath)) {
+            Write-Host ""
+            Write-Host "  ⚠️  Template '$templateName' not found." -ForegroundColor Yellow
+            Write-Host "  Available: feature, research, bugfix, refactor, fullstack" -ForegroundColor Gray
+            Write-Host ""
+            return
+        }
+
+        $preset = Read-Json $presetPath
+        Write-Host "  📋 Template: $($preset.name) — $($preset.description)" -ForegroundColor Cyan
+        Write-Host ""
+
+        # Create roles from template
+        foreach ($role in $preset.roles) {
+            $model = $null
+            if ($role.model) { $model = $role.model }
+            Invoke-Role $teamName $role.key $role.description $model
+        }
+
+        # Create tasks from template
+        foreach ($task in $preset.tasks) {
+            $deps = ""
+            if ($task.depends_on -and @($task.depends_on).Count -gt 0) {
+                $deps = ($task.depends_on -join ",")
+            }
+            Invoke-Task $teamName $task.id $task.title $task.assigned_to $deps
+        }
+
+        Write-Host ""
+        Invoke-Status $teamName
+        return
+    }
+
     Write-Host ""
     Write-Host "  Next steps:" -ForegroundColor Cyan
     Write-Host "    team role $teamName <key> `"<description>`" [model]"
@@ -488,8 +530,10 @@ IMPORTANT: Begin by reading protocol.md now. Then read your role file, then task
 
         $launcherScript = @"
 Set-Location '$($projectDir -replace "'","''")'
+Start-Transcript -Path '$($logFile -replace "'","''")' -Append
 `$promptText = Get-Content '$($promptFile -replace "'","''")' -Raw
-copilot -i `$promptText --add-dir '$($teamDir -replace "'","''")' --yolo$modelFlag 2>&1 | Tee-Object -FilePath '$($logFile -replace "'","''")'
+copilot -i `$promptText --add-dir '$($teamDir -replace "'","''")' --yolo$modelFlag
+Stop-Transcript
 "@
         $launcherFile = Join-Path $launchDir "launch-$key.ps1"
         Set-Content $launcherFile $launcherScript -Encoding UTF8
@@ -710,7 +754,7 @@ function Show-Help {
     Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  COMMANDS" -ForegroundColor Yellow
-    Write-Host "    init   <name> <scenario>                   Create a new team" -ForegroundColor White
+    Write-Host "    init   <name> <scenario> [template]        Create a new team (templates: feature, research, bugfix, refactor, fullstack)" -ForegroundColor White
     Write-Host "    role   <name> <key> <description> [model]  Add a role (generates role file)" -ForegroundColor White
     Write-Host "    task   <name> <id> <title> <role> [deps]   Add a task" -ForegroundColor White
     Write-Host "    launch <name> [role]                       Spawn agent tabs (with logs)" -ForegroundColor White
@@ -894,7 +938,7 @@ function Invoke-Watch([string]$teamName) {
 # PowerShell has a scalar coercion bug when slicing single-element arrays.
 
 switch ($args[0]) {
-    "init"   { Invoke-Init   $args[1] $args[2] }
+    "init"   { Invoke-Init   $args[1] $args[2] $args[3] }
     "role"   { Invoke-Role   $args[1] $args[2] $args[3] $args[4] }
     "task"   { Invoke-Task   $args[1] $args[2] $args[3] $args[4] $args[5] }
     "launch" { Invoke-Launch $args[1] $args[2] }
