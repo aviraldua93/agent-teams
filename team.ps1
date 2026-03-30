@@ -512,8 +512,9 @@ WHEN ALL YOUR TASKS ARE COMPLETE: You MUST type /exit to end your session. This 
         $signalLine = "`nSet-Content '$($DoneFile -replace "'","''")' (Get-Date -Format 'o') -Encoding UTF8"
     }
 
-    # Always use -i (interactive) for the nice TUI. Agents are told to /exit when done.
-    $copilotFlag = "-i"
+    # Orchestrated mode (-p): copilot exits on completion, triggers .done signal
+    # Manual mode (-i): interactive TUI, stays open for user interaction
+    $copilotFlag = if ($DoneFile) { "-p" } else { "-i" }
     $noExitFlag = if ($DoneFile) { "" } else { " -NoExit" }
 
     $launcherScript = @"
