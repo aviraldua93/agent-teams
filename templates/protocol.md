@@ -13,6 +13,7 @@
    - If `status` is `pending`: claim it — update status to `in_progress` in tasks.json.
    - Update your heartbeat (see Heartbeat Protocol below).
    - Do the work. Write your deliverable to the path in `deliverable`.
+   - Check `acceptance_criteria` if present — your task is NOT done until ALL criteria are met.
    - Update status to `done` in tasks.json.
    - Append a completion message to `mailbox/lead.inbox`.
 6. When all your tasks are done, append a final "all tasks complete" message to `mailbox/lead.inbox` and set your heartbeat to idle.
@@ -23,10 +24,11 @@
 2. **Read from files listed in `reads_from`** — plus the project codebase itself.
 3. **Mailbox is append-only** — never overwrite, always append to the end.
 4. **One task at a time** — finish and mark done before starting the next.
-5. **Deliverables go in `artifacts/`** — the filename is specified in the task's `deliverable` field.
-6. **If blocked, say so** — set your heartbeat to `blocked`, write to `mailbox/lead.inbox` explaining what you're waiting on, and move to the next unblocked task if one exists.
-7. **Never modify another role's files** — read their artifacts, write your own.
-8. **Protocol-exempt writes** — All roles may write to: their heartbeat file, their task status in tasks.json, mailbox inboxes (append-only), and their owned artifacts — regardless of tool restrictions.
+5. **Acceptance criteria are contracts** — each task may have `acceptance_criteria` in tasks.json. Your task is NOT done until ALL criteria are met. Check them before marking done.
+6. **Deliverables go in `artifacts/`** — the filename is specified in the task's `deliverable` field.
+7. **If blocked, say so** — set your heartbeat to `blocked`, write to `mailbox/lead.inbox` explaining what you're waiting on, and move to the next unblocked task if one exists.
+8. **Never modify another role's files** — read their artifacts, write your own.
+9. **Protocol-exempt writes** — All roles may write to: their heartbeat file, their task status in tasks.json, mailbox inboxes (append-only), and their owned artifacts — regardless of tool restrictions.
 
 ## Role File
 

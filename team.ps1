@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 # ============================================================================
 # team.ps1 — Agent Teams for GitHub Copilot CLI
-# Version: 0.3.0
+# Version: 0.4.0
 #
 # Coordinates multiple Copilot CLI sessions as specialized agents.
 # Each agent runs in its own terminal tab with a role-specific prompt,
@@ -648,6 +648,13 @@ function Invoke-Status([string]$teamName) {
         $deps = if (@($task.depends_on).Count -gt 0) { " (`u{2190} $($task.depends_on -join ', '))" } else { "" }
         Write-Host "    $icon $($task.id) `u{2192} $($task.assigned_to) [$($task.status)]$deps" -ForegroundColor White
         Write-Host "       $($task.title)" -ForegroundColor DarkGray
+        # Show acceptance criteria if present
+        if ($task.acceptance_criteria) {
+            foreach ($ac in $task.acceptance_criteria) {
+                $acIcon = if ($task.status -eq "done") { "`u{2611}" } else { "`u{2610}" }
+                Write-Host "       $acIcon $ac" -ForegroundColor DarkGray
+            }
+        }
     }
     Write-Host ""
     $progressColor = if ($totalCount -gt 0 -and $doneCount -eq $totalCount) { "Green" } else { "Yellow" }
@@ -753,7 +760,7 @@ function Invoke-Clean([string]$teamName) {
 function Show-Help {
     Write-Host ""
     Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║  Agent Teams for GitHub Copilot CLI   v0.3  ║" -ForegroundColor Cyan
+    Write-Host "  ║  Agent Teams for GitHub Copilot CLI   v0.4  ║" -ForegroundColor Cyan
     Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  COMMANDS" -ForegroundColor Yellow
@@ -763,6 +770,8 @@ function Show-Help {
     Write-Host "    launch <name> [role]                       Spawn agent tabs (with logs)" -ForegroundColor White
     Write-Host "    status <name>                              Dashboard with heartbeats" -ForegroundColor White
     Write-Host "    watch  <name>                              Live dashboard (refreshes 3s)" -ForegroundColor White
+    Write-Host "    plan   <scenario> [template-seed]          AI-generate a team plan" -ForegroundColor White
+    Write-Host "    apply                                      Create team from plan" -ForegroundColor White
     Write-Host "    list                                       List all teams" -ForegroundColor White
     Write-Host "    clean  <name>                              Remove a team" -ForegroundColor White
     Write-Host ""
@@ -776,6 +785,12 @@ function Show-Help {
     Write-Host '    team task calculator review "Review the code" reviewer implement' -ForegroundColor Gray
     Write-Host "    team launch calculator" -ForegroundColor Gray
     Write-Host "    team status calculator" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  v0.4 FEATURES" -ForegroundColor Yellow
+    Write-Host "    - team plan: AI-generated team planning via planner session" -ForegroundColor Gray
+    Write-Host "    - team apply: create a team from a proposed plan" -ForegroundColor Gray
+    Write-Host "    - Acceptance criteria on tasks (sprint contracts)" -ForegroundColor Gray
+    Write-Host "    - Status dashboard shows acceptance criteria as checkboxes" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  v0.3 FEATURES" -ForegroundColor Yellow
     Write-Host "    - Atomic JSON writes via tmp+rename (crash-safe)" -ForegroundColor Gray
@@ -936,6 +951,188 @@ function Invoke-Watch([string]$teamName) {
     }
 }
 
+# ── plan ─────────────────────────────────────────────────────────────────────
+# Spawns a planner Copilot session that explores the codebase and writes
+# a proposed team plan to .agent-teams/.plan/proposed-plan.json.
+function Invoke-Plan([string]$scenario, [string]$seedTemplate) {
+    if (-not $scenario) {
+        Write-Host "  Usage: team plan <scenario> [template-seed]" -ForegroundColor Yellow
+        return
+    }
+
+    $projectDir = (Get-Location).Path
+    $planDir = Join-Path $projectDir ".agent-teams\.plan"
+    New-Item -ItemType Directory -Force -Path $planDir | Out-Null
+
+    $seedLine = if ($seedTemplate) { $seedTemplate } else { "none" }
+
+    $prompt = @"
+You are a Team Planner. Your job is to analyze a project and propose an agent team.
+
+PROJECT DIRECTORY: $projectDir
+SCENARIO: $scenario
+SEED TEMPLATE: $seedLine
+
+INSTRUCTIONS:
+1. Quick-scan the project: file tree, README, package.json/pyproject.toml, key config files.
+   Do NOT deep-dive — spend max 2 minutes exploring.
+2. Based on the scenario and codebase, propose a team structure.
+3. Write your proposal to: $planDir\proposed-plan.json
+
+OUTPUT FORMAT (proposed-plan.json):
+{
+  "scenario": "the scenario",
+  "rationale": "1-2 sentences on why this team structure fits",
+  "roles": [
+    {
+      "key": "role-key",
+      "description": "what this role does",
+      "model": "claude-sonnet-4 or null",
+      "why": "why this role is needed for this specific task"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-id",
+      "title": "what to do",
+      "assigned_to": "role-key",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Specific criterion 1 that defines done",
+        "Specific criterion 2",
+        "Specific criterion 3"
+      ]
+    }
+  ]
+}
+
+RULES:
+- Max 5 roles. More than 5 = split into multiple teams.
+- Max 3 tasks per role. More than 3 = split the role.
+- Every task MUST have acceptance_criteria (2-5 items each).
+- Acceptance criteria must be specific and verifiable, not vague.
+- If a seed template is provided, start from it but adapt to the actual codebase.
+- Write ONLY the JSON file. Do not modify any project files.
+- After writing the plan, say "Plan written to proposed-plan.json" and stop.
+"@
+
+    $promptFile = Join-Path $planDir "planner-prompt.txt"
+    Set-Content $promptFile $prompt -Encoding UTF8
+
+    # Write launcher script
+    $launcherScript = @"
+Set-Location '$($projectDir -replace "'","''")'
+`$promptText = Get-Content '$($promptFile -replace "'","''")' -Raw
+copilot -i `$promptText --yolo
+"@
+    $launcherFile = Join-Path $planDir "launch-planner.ps1"
+    Set-Content $launcherFile $launcherScript -Encoding UTF8
+
+    # Spawn tab
+    Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"Planner`" pwsh -NoExit -File `"$launcherFile`""
+
+    Write-Host ""
+    Write-Host "  `u{1F50D} Planning team for: $scenario" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  A planner session has opened in a new tab." -ForegroundColor White
+    Write-Host "  It will explore your project and write a plan to .agent-teams/.plan/proposed-plan.json" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  When the planner finishes, run:" -ForegroundColor White
+    Write-Host "    team apply" -ForegroundColor Yellow
+    Write-Host ""
+}
+
+# ── apply ────────────────────────────────────────────────────────────────────
+# Reads a proposed plan from .agent-teams/.plan/proposed-plan.json, shows it
+# for approval, and creates the team with roles, tasks, and acceptance criteria.
+function Invoke-Apply {
+    $projectDir = (Get-Location).Path
+    $planFile = Join-Path $projectDir ".agent-teams\.plan\proposed-plan.json"
+
+    if (-not (Test-Path $planFile)) {
+        Write-Host "  No plan found. Run 'team plan <scenario>' first." -ForegroundColor Yellow
+        return
+    }
+
+    $plan = Read-Json $planFile
+
+    # Show the plan for review
+    Write-Host ""
+    Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "  ║  PROPOSED PLAN                               ║" -ForegroundColor Cyan
+    Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Scenario:  $($plan.scenario)" -ForegroundColor White
+    Write-Host "  Rationale: $($plan.rationale)" -ForegroundColor Gray
+    Write-Host ""
+
+    Write-Host "  ROLES" -ForegroundColor Yellow
+    foreach ($role in $plan.roles) {
+        $modelTag = if ($role.model) { " [$($role.model)]" } else { "" }
+        Write-Host "    $($role.key): $($role.description)$modelTag" -ForegroundColor White
+        Write-Host "      Why: $($role.why)" -ForegroundColor DarkGray
+    }
+    Write-Host ""
+
+    Write-Host "  TASKS" -ForegroundColor Yellow
+    foreach ($task in $plan.tasks) {
+        $deps = if (@($task.depends_on).Count -gt 0) { " (`u{2190} $($task.depends_on -join ', '))" } else { "" }
+        Write-Host "    $($task.id) `u{2192} $($task.assigned_to)$deps" -ForegroundColor White
+        Write-Host "       $($task.title)" -ForegroundColor DarkGray
+        if ($task.acceptance_criteria) {
+            foreach ($ac in $task.acceptance_criteria) {
+                Write-Host "       `u{2610} $ac" -ForegroundColor DarkGray
+            }
+        }
+    }
+    Write-Host ""
+
+    $confirm = Read-Host "  Apply this plan? [Y/n]"
+    if ($confirm -eq 'n') {
+        Write-Host "  Plan not applied. Edit .agent-teams/.plan/proposed-plan.json and run 'team apply' again." -ForegroundColor Yellow
+        return
+    }
+
+    $teamName = Read-Host "  Team name"
+    if (-not $teamName) {
+        Write-Host "  Team name required." -ForegroundColor Yellow
+        return
+    }
+
+    # Init team
+    Invoke-Init $teamName $plan.scenario
+
+    # Create roles
+    foreach ($role in $plan.roles) {
+        $model = $null
+        if ($role.model) { $model = $role.model }
+        Invoke-Role $teamName $role.key $role.description $model
+    }
+
+    # Create tasks
+    foreach ($task in $plan.tasks) {
+        $deps = if (@($task.depends_on).Count -gt 0) { ($task.depends_on -join ",") } else { $null }
+        Invoke-Task $teamName $task.id $task.title $task.assigned_to $deps
+    }
+
+    # Store acceptance criteria in tasks.json
+    $tasksObj = Get-Tasks $teamName
+    foreach ($planTask in $plan.tasks) {
+        $match = $tasksObj.tasks | Where-Object { $_.id -eq $planTask.id }
+        if ($match -and $planTask.acceptance_criteria) {
+            $match | Add-Member -NotePropertyName "acceptance_criteria" -NotePropertyValue @($planTask.acceptance_criteria) -Force
+        }
+    }
+    Save-Tasks $teamName $tasksObj
+
+    Write-Host ""
+    # Show status
+    Invoke-Status $teamName
+
+    Write-Host "  Ready! Run 'team launch $teamName' to start." -ForegroundColor Green
+    Write-Host ""
+}
+
 # ── Main Dispatch ───────────────────────────────────────────────────────────
 # IMPORTANT: Use $args[N] directly — do NOT assign to intermediate variable.
 # PowerShell has a scalar coercion bug when slicing single-element arrays.
@@ -949,5 +1146,7 @@ switch ($args[0]) {
     "watch"  { Invoke-Watch  $args[1] }
     "list"   { Invoke-List }
     "clean"  { Invoke-Clean  $args[1] }
+    "plan"   { Invoke-Plan   $args[1] $args[2] }
+    "apply"  { Invoke-Apply }
     default  { Show-Help }
 }
