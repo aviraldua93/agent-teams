@@ -95,6 +95,9 @@ Your role file (`roles/{your-role-key}.md`) specifies which types are permitted.
 - **Sub-agents cannot spawn their own sub-agents.** Only top-level role agents may use the task tool.
 - **Sub-agents are stateless.** Provide full context in the prompt — they have no memory of prior calls.
 
+**Decomposition rule:**
+When your task involves comparing, researching, or analyzing MULTIPLE independent topics: spawn ONE sub-agent PER topic, not one agent for all. Run them in parallel. Example: researching 5 frameworks → 5 parallel explore agents, each focused on one framework. This is faster AND more thorough.
+
 **Thoroughness expectations:**
 - **Architects:** Spawn 3+ explore agents in parallel to understand the codebase from different angles before designing. Never design from a surface skim.
 - **Coders:** Spawn explore agents to read specs and understand existing patterns before writing code. Spawn task agents to run tests after every significant change. Never submit untested code.
