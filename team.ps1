@@ -46,14 +46,58 @@ function Assert-TeamExists([string]$teamName) {
 }
 
 function Read-Json([string]$path) {
-    return Get-Content $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    try {
+        return Get-Content $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    } catch {
+        Write-Host "  ⚠️  Failed to read $path`: $_" -ForegroundColor Red
+        return $null
+    }
 }
 
 function Write-Json([string]$path, $obj) {
-    $tmp = "$path.tmp"
+    $tmp = "$path.tmp.$PID"
     $obj | ConvertTo-Json -Depth 10 | Set-Content $tmp -Encoding UTF8
     if (Test-Path $path) { Remove-Item $path -Force }
     Move-Item $tmp $path -Force
+}
+
+function Append-Event([string]$teamDir, [string]$eventType, [string]$taskId, [string]$role, [string]$detail) {
+    $logPath = Join-Path $teamDir "events.log"
+    $entry = "$(Get-Date -Format 'o')|$eventType|$taskId|$role|$detail"
+    Add-Content $logPath $entry -Encoding UTF8
+}
+
+function Write-OrchestratorLog([string]$teamDir, [string]$message) {
+    $logDir = Join-Path $teamDir "logs"
+    if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
+    $logPath = Join-Path $logDir "orchestrator.log"
+    $entry = "[$(Get-Date -Format 'o')] $message"
+    Add-Content $logPath $entry -Encoding UTF8
+}
+
+function Test-DagAcyclic([PSObject]$tasksObj) {
+    $tasks = @{}
+    foreach ($t in $tasksObj.tasks) { $tasks[$t.id] = @($t.depends_on) }
+
+    $visited = @{}
+    $inStack = @{}
+
+    function Visit([string]$id) {
+        if ($inStack[$id]) { return $false }
+        if ($visited[$id]) { return $true }
+        $visited[$id] = $true
+        $inStack[$id] = $true
+        foreach ($dep in $tasks[$id]) {
+            if ($dep -and -not (Visit $dep)) { return $false }
+        }
+        $inStack[$id] = $false
+        return $true
+    }
+
+    foreach ($id in $tasks.Keys) {
+        if (-not (Visit $id)) { return $false }
+    }
+    return $true
 }
 
 function Get-Manifest([string]$teamName) {
@@ -174,6 +218,9 @@ function Invoke-Init([string]$teamName, [string]$scenario, [string]$templateName
     # Pre-create lead inbox so agents can append from the start
     Set-Content (Join-Path $dir "mailbox\lead.inbox") "" -Encoding UTF8
 
+    # Create empty event log (WAL)
+    Set-Content (Join-Path $dir "events.log") "" -Encoding UTF8
+
     # Manifest
     $manifest = [ordered]@{
         team        = $teamName
@@ -214,6 +261,10 @@ function Invoke-Init([string]$teamName, [string]$scenario, [string]$templateName
         }
 
         $preset = Read-Json $presetPath
+        if (-not $preset) {
+            Write-Host "  ⚠️  Failed to parse template '$templateName'." -ForegroundColor Red
+            return
+        }
         Write-Host "  📋 Template: $($preset.name) — $($preset.description)" -ForegroundColor Cyan
         Write-Host ""
 
@@ -258,6 +309,7 @@ function Invoke-Role([string]$teamName, [string]$roleKey, [string]$description, 
     Assert-TeamExists $teamName
 
     $manifest = Get-Manifest $teamName
+    if (-not $manifest) { Write-Host "  Error: corrupt manifest.json" -ForegroundColor Red; return }
     $teamDir = Get-TeamDir $teamName
     $roleName = (Get-Culture).TextInfo.ToTitleCase(($roleKey -replace '-', ' '))
 
@@ -335,6 +387,7 @@ function Invoke-Task([string]$teamName, [string]$taskId, [string]$title, [string
     Assert-TeamExists $teamName
 
     $tasksObj = Get-Tasks $teamName
+    if (-not $tasksObj) { Write-Host "  Error: corrupt tasks.json" -ForegroundColor Red; return }
 
     $deps = @()
     if ($dependsOn) {
@@ -356,8 +409,21 @@ function Invoke-Task([string]$teamName, [string]$taskId, [string]$title, [string
     $tasksObj.tasks = $currentTasks
     Save-Tasks $teamName $tasksObj
 
+    # DAG cycle detection — reject task if it creates a circular dependency
+    if (-not (Test-DagAcyclic $tasksObj)) {
+        Write-Host "  ⚠️  Circular dependency detected! Task '$taskId' creates a cycle." -ForegroundColor Red
+        $tasksObj.tasks = @($tasksObj.tasks | Where-Object { $_.id -ne $taskId })
+        Save-Tasks $teamName $tasksObj
+        return
+    }
+
+    # Event log
+    $teamDir = Get-TeamDir $teamName
+    Append-Event $teamDir "task_created" $taskId $assignedTo "deps=$dependsOn"
+
     # Auto-add deliverable to role's owns_files if not present
     $manifest = Get-Manifest $teamName
+    if (-not $manifest) { Write-Host "  Error: corrupt manifest.json" -ForegroundColor Red; return }
     $roleObj = $manifest.roles.$assignedTo
     if ($roleObj) {
         $currentOwns = @($roleObj.owns_files)
@@ -450,6 +516,7 @@ $toolLines
 
     # Heartbeat instructions
     $manifest = Get-Manifest $TeamName
+    if (-not $manifest) { Write-Host "  Error: corrupt manifest.json" -ForegroundColor Red; return }
     $heartbeatPath = "$TeamDir\heartbeat\$RoleKey.json"
     $heartbeatBlock = @"
 
@@ -546,6 +613,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
     Assert-TeamExists $teamName
 
     $manifest = Get-Manifest $teamName
+    if (-not $manifest) { Write-Host "  Error: corrupt manifest.json" -ForegroundColor Red; return }
     $teamDir  = Get-TeamDir $teamName
     $projectDir = $manifest.project_dir
     $launchDir  = Join-Path $teamDir ".launch"
@@ -587,6 +655,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
     while ($true) {
         $waveNum++
         $tasksObj = Get-Tasks $teamName  # Re-read each wave
+        if (-not $tasksObj) { Write-Host "  Error: corrupt tasks.json" -ForegroundColor Red; break }
 
         # Find roles with pending tasks
         $pendingRoles = @()
@@ -607,12 +676,36 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
         }
 
         Write-Host "  `u{2500}`u{2500} Wave $waveNum `u{2500}`u{2500}" -ForegroundColor Cyan
+        Write-OrchestratorLog $teamDir "Wave $waveNum starting with roles: $($pendingRoles -join ', ')"
 
         # Spawn this wave's roles
         $doneFiles = @{}
         foreach ($roleKey in $pendingRoles) {
             $roleProp = $manifest.roles.PSObject.Properties | Where-Object { $_.Name -eq $roleKey }
             if (-not $roleProp) { continue }
+
+            # Poison pill: track launch attempts per role
+            $attemptsFile = Join-Path $launchDir "$roleKey.attempts"
+            $attempts = 0
+            if (Test-Path $attemptsFile) { $attempts = [int](Get-Content $attemptsFile -Raw) }
+            $attempts++
+            Set-Content $attemptsFile $attempts -Encoding UTF8
+
+            if ($attempts -gt 3) {
+                Write-Host "    ☠️  $roleKey — failed 3 times, marking tasks as failed" -ForegroundColor Red
+                Write-OrchestratorLog $teamDir "Role $roleKey exceeded max retries, marking failed"
+                $tasksObj = Get-Tasks $teamName
+                if ($tasksObj) {
+                    foreach ($t in $tasksObj.tasks) {
+                        if ($t.assigned_to -eq $roleKey -and $t.status -ne "done") {
+                            $t.status = "failed"
+                        }
+                    }
+                    Save-Tasks $teamName $tasksObj
+                }
+                Append-Event $teamDir "task_failed" "" $roleKey "max retries exceeded"
+                continue
+            }
 
             $doneFile = Join-Path $launchDir "$roleKey.done"
             $doneFiles[$roleKey] = $doneFile
@@ -623,6 +716,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
                 -ProjectDir $projectDir -TeamDir $teamDir -DoneFile $doneFile
 
             Write-Host "    `u{1F7E2} $($roleProp.Value.name) ($roleKey)" -ForegroundColor Green
+            Write-OrchestratorLog $teamDir "Spawning $roleKey (attempt $attempts)"
             Start-Sleep -Milliseconds 800
         }
 
@@ -636,14 +730,19 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
             $completed = @()
             $deadAgents = @()
             foreach ($roleKey in $pendingRoles) {
+                # Skip roles that were poison-pilled (no doneFile entry)
+                if (-not $doneFiles.ContainsKey($roleKey)) { continue }
+
                 # Probe 1: COMPLETION — .done signal file exists
                 if (Test-Path $doneFiles[$roleKey]) {
                     $completed += $roleKey
+                    Write-OrchestratorLog $teamDir "Role $roleKey completed via .done signal"
                     continue
                 }
 
                 # Probe 2: EVIDENCE — all tasks for this role marked done in tasks.json?
                 $tasksObj = Get-Tasks $teamName
+                if (-not $tasksObj) { continue }
                 $roleTasks = @($tasksObj.tasks | Where-Object { $_.assigned_to -eq $roleKey })
                 $allDone = ($roleTasks.Count -gt 0) -and (@($roleTasks | Where-Object { $_.status -ne "done" }).Count -eq 0)
                 if ($allDone) {
@@ -651,6 +750,8 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
                     Set-Content $doneFiles[$roleKey] "recovered-$(Get-Date -Format 'o')" -Encoding UTF8
                     $completed += $roleKey
                     Write-Host "    🔧 $roleKey — recovered (tasks done, .done signal was missing)" -ForegroundColor Yellow
+                    Write-OrchestratorLog $teamDir "Role $roleKey auto-recovered (tasks done, .done missing)"
+                    Append-Event $teamDir "auto_recovered" "" $roleKey "tasks done, .done missing"
                     continue
                 }
 
@@ -664,6 +765,8 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
                         if ($staleSecs -gt 120) {
                             # Heartbeat stale > 2 min — agent likely dead
                             $deadAgents += $roleKey
+                            Write-OrchestratorLog $teamDir "Role $roleKey appears dead (heartbeat stale $([math]::Round($staleSecs)) seconds)"
+                            Append-Event $teamDir "agent_dead" "" $roleKey "stale heartbeat"
                         }
                     } catch {
                         # Can't parse heartbeat — treat as no heartbeat
@@ -671,11 +774,16 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
                 } elseif ($elapsed -gt 120) {
                     # No heartbeat after 2 min — agent may have failed to start
                     $deadAgents += $roleKey
+                    Write-OrchestratorLog $teamDir "Role $roleKey appears dead (no heartbeat after $elapsed seconds)"
+                    Append-Event $teamDir "agent_dead" "" $roleKey "stale heartbeat"
                 }
             }
 
+            # Count active roles (excluding poison-pilled)
+            $activeRoles = @($pendingRoles | Where-Object { $doneFiles.ContainsKey($_) })
+
             # Show status
-            $remaining = @($pendingRoles | Where-Object { $completed -notcontains $_ })
+            $remaining = @($activeRoles | Where-Object { $completed -notcontains $_ })
             if ($remaining.Count -gt 0) {
                 $statusParts = @()
                 foreach ($rk in $remaining) {
@@ -685,10 +793,10 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
                         $statusParts += "🔄$rk"
                     }
                 }
-                Write-Host "    Waiting ($($elapsed)s): $($completed.Count)/$($pendingRoles.Count) done — $($statusParts -join ' ')" -ForegroundColor Gray
+                Write-Host "    Waiting ($($elapsed)s): $($completed.Count)/$($activeRoles.Count) done — $($statusParts -join ' ')" -ForegroundColor Gray
             }
 
-            if ($completed.Count -eq $pendingRoles.Count) { break }
+            if ($completed.Count -ge $activeRoles.Count) { break }
 
             # If all remaining agents are dead, stop waiting
             if ($deadAgents.Count -eq $remaining.Count -and $remaining.Count -gt 0 -and $elapsed -gt 120) {
@@ -708,6 +816,8 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
         }
 
         Write-Host "    `u{2705} Wave $waveNum complete" -ForegroundColor Green
+        Write-OrchestratorLog $teamDir "Wave $waveNum complete"
+        Append-Event $teamDir "wave_complete" "" "" "wave=$waveNum"
         Write-Host ""
 
         # Unblock next wave
@@ -731,7 +841,9 @@ function Invoke-Status([string]$teamName) {
     Assert-TeamExists $teamName
 
     $manifest = Get-Manifest $teamName
+    if (-not $manifest) { Write-Host "  Error: corrupt manifest.json" -ForegroundColor Red; return }
     $tasksObj = Get-Tasks $teamName
+    if (-not $tasksObj) { Write-Host "  Error: corrupt tasks.json" -ForegroundColor Red; return }
     $teamDir  = Get-TeamDir $teamName
 
     Write-Host ""
@@ -807,6 +919,7 @@ function Invoke-Status([string]$teamName) {
             "in_progress" { "`u{1F504}" }  # 🔄
             "blocked"     { "`u{1F6AB}" }  # 🚫
             "pending"     { "`u{23F3}" }   # ⏳
+            "failed"      { "`u{274C}" }   # ❌
             default       { "`u{2753}" }   # ❓
         }
         if ($task.status -eq "done") { $doneCount++ }
@@ -886,14 +999,17 @@ function Invoke-List {
             $manifestPath = Join-Path $t.FullName "manifest.json"
             if (Test-Path $manifestPath) {
                 $m = Read-Json $manifestPath
+                if (-not $m) { continue }
                 $roleCount = @($m.roles.PSObject.Properties).Count
                 $taskPath = Join-Path $t.FullName "tasks.json"
                 $taskCount = 0
                 $doneCount = 0
                 if (Test-Path $taskPath) {
                     $tObj = Read-Json $taskPath
-                    $taskCount = @($tObj.tasks).Count
-                    $doneCount = @($tObj.tasks | Where-Object { $_.status -eq "done" }).Count
+                    if ($tObj) {
+                        $taskCount = @($tObj.tasks).Count
+                        $doneCount = @($tObj.tasks | Where-Object { $_.status -eq "done" }).Count
+                    }
                 }
                 Write-Host "    📋 $($t.Name) — $($m.scenario)" -ForegroundColor White
                 Write-Host "       $roleCount roles, $doneCount/$taskCount tasks done" -ForegroundColor Gray
@@ -1008,6 +1124,11 @@ function Invoke-Watch([string]$teamName) {
         Clear-Host
         $manifest = Get-Manifest $teamName
         $tasksObj = Get-Tasks $teamName
+        if (-not $manifest -or -not $tasksObj) {
+            Write-Host "  ⚠️  Failed to read team data. Retrying..." -ForegroundColor Red
+            Start-Sleep 3
+            continue
+        }
 
         $now = Get-Date -Format "HH:mm:ss"
         Write-Host ""
@@ -1068,6 +1189,7 @@ function Invoke-Watch([string]$teamName) {
                 "in_progress" { "`u{1F504}" }
                 "blocked"     { "`u{1F6AB}" }
                 "pending"     { "`u{23F3}" }
+                "failed"      { "`u{274C}" }
                 default       { "`u{2753}" }
             }
             Write-Host "    $icon $($task.id) `u{2192} $($task.assigned_to) [$($task.status)]" -ForegroundColor White
@@ -1427,6 +1549,7 @@ function Invoke-Apply {
     }
 
     $plan = Read-Json $planFile
+    if (-not $plan) { Write-Host "  Error: corrupt proposed-plan.json" -ForegroundColor Red; return }
 
     # Show the plan for review
     Write-Host ""
@@ -1536,13 +1659,15 @@ function Invoke-Apply {
 
     # Store acceptance criteria in tasks.json
     $tasksObj = Get-Tasks $teamName
-    foreach ($planTask in $plan.tasks) {
-        $match = $tasksObj.tasks | Where-Object { $_.id -eq $planTask.id }
-        if ($match -and $planTask.acceptance_criteria) {
-            $match | Add-Member -NotePropertyName "acceptance_criteria" -NotePropertyValue @($planTask.acceptance_criteria) -Force
+    if ($tasksObj) {
+        foreach ($planTask in $plan.tasks) {
+            $match = $tasksObj.tasks | Where-Object { $_.id -eq $planTask.id }
+            if ($match -and $planTask.acceptance_criteria) {
+                $match | Add-Member -NotePropertyName "acceptance_criteria" -NotePropertyValue @($planTask.acceptance_criteria) -Force
+            }
         }
+        Save-Tasks $teamName $tasksObj
     }
-    Save-Tasks $teamName $tasksObj
 
     Write-Host ""
     # Show status
@@ -1571,6 +1696,7 @@ function Invoke-Unblock([string]$teamName) {
     Assert-TeamExists $teamName
 
     $tasksObj = Get-Tasks $teamName
+    if (-not $tasksObj) { Write-Host "  Error: corrupt tasks.json" -ForegroundColor Red; return }
     $teamDir  = Get-TeamDir $teamName
     $unblocked = @()
 
@@ -1588,7 +1714,7 @@ function Invoke-Unblock([string]$teamName) {
         $allDone = $true
         foreach ($depId in $deps) {
             $depTask = $tasksObj.tasks | Where-Object { $_.id -eq $depId }
-            if (-not $depTask -or $depTask.status -ne "done") {
+            if (-not $depTask -or ($depTask.status -ne "done" -and $depTask.status -ne "failed")) {
                 $allDone = $false
                 break
             }
@@ -1622,6 +1748,8 @@ Your task "$($task.id)" is now unblocked. Dependencies complete. Begin work.
 ---
 "@
         Add-Content $inboxPath $msg -Encoding UTF8
+        Append-Event $teamDir "task_unblocked" $task.id $task.assigned_to ""
+        Write-OrchestratorLog $teamDir "Unblocked task $($task.id) for $($task.assigned_to)"
     }
 
     Write-Host ""
