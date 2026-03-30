@@ -7,7 +7,7 @@ Each agent runs in its own terminal tab with a dedicated role, tools, and file o
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6)
 ![PowerShell 7+](https://img.shields.io/badge/PowerShell-7%2B-5391FE)
-![Version](https://img.shields.io/badge/Version-0.4.0-green)
+![Version](https://img.shields.io/badge/Version-0.5.0-green)
 ![GitHub Copilot CLI](https://img.shields.io/badge/GitHub%20Copilot-CLI-8957e5)
 [![GitHub Issues](https://img.shields.io/github/issues/aviraldua93/agent-teams)](https://github.com/aviraldua93/agent-teams/issues)
 ![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen)
@@ -35,15 +35,21 @@ graph LR
 
 ## Quick Start
 
-One command to scaffold a team. One command to launch it.
+Describe what you want. The planner assesses feasibility, designs roles, and generates a team plan.
 
 ```powershell
 # From your project directory:
-team init login-page "Build a login page with email/password auth" feature
+team plan "Build a login page with email/password auth"
+```
+
+Three assessors (tech, scope, risk) explore your codebase in parallel, then a synthesizer produces a plan with roles, tasks, acceptance criteria, and a **feasibility verdict** (`go` / `risky` / `no-go`). Review and apply:
+
+```powershell
+team apply     # shows the plan, asks for confirmation, creates the team
 team launch login-page
 ```
 
-That's it. Three terminal tabs open — architect, coder, reviewer — each with role-specific instructions, tool permissions, and file ownership. They read the shared protocol, claim tasks, and coordinate through the filesystem.
+The orchestrator spawns agents in **waves** — first the roles with no dependencies, waits for them to finish, auto-unblocks downstream tasks, then spawns the next wave. Repeat until done.
 
 Monitor progress from your lead session:
 
@@ -78,6 +84,18 @@ Or watch it live with auto-refresh:
 team watch login-page    # refreshes every 3s, Ctrl+C to stop
 ```
 
+<details>
+<summary><b>Manual setup (without planner)</b></summary>
+
+You can also skip the planner and use templates directly:
+
+```powershell
+team init login-page "Build a login page with email/password auth" feature
+team launch login-page
+```
+
+</details>
+
 ---
 
 ## Why?
@@ -110,7 +128,7 @@ Restart your terminal (or `. $PROFILE`).
 
 ## 📋 Templates
 
-Five preset templates so you don't have to define roles and tasks from scratch.
+Eight preset templates so you don't have to define roles and tasks from scratch.
 
 | Template | Roles | Tasks | Use Case |
 |----------|-------|-------|----------|
@@ -227,16 +245,14 @@ Templates are JSON files in `templates/presets/`. Create your own or edit the bu
 
 ### Coordination Flow
 
-1. `team init` scaffolds the team directory with protocol, roles, and tasks
-2. `team launch` opens a terminal tab per role, each running `copilot -i` with:
-   - A role-specific prompt pointing to `protocol.md` and `roles/{key}.md`
-   - `--add-dir` for the team directory (shared filesystem access)
-   - `--model` if specified in the role definition
-   - Session output logged via `Start-Transcript` to `logs/{key}.log`
-3. Each agent reads `protocol.md` → `roles/{key}.md` → `tasks.json`
-4. Agents claim tasks, write deliverables to `artifacts/`, message via `mailbox/`
-5. Agents update `heartbeat/{key}.json` so the lead can monitor liveness
-6. Lead runs `team status` or `team watch` to see the dashboard
+1. `team plan` spawns 3 assessors in parallel (tech, scope, risk), waits for all to finish, then spawns a synthesizer that produces `proposed-plan.json` with a feasibility gate (`go` / `risky` / `no-go`), roles, tasks, and acceptance criteria
+2. `team apply` shows the plan for review and creates the team (roles, tasks, acceptance criteria)
+3. `team init` (alternative) scaffolds the team directory from a template or manually
+4. `team launch` runs a **wave-based orchestrator**: finds roles with pending tasks → spawns them in parallel → waits for completion using **3-probe detection** (`.done` signal file → task evidence in `tasks.json` → heartbeat liveness) → runs `unblock` to transition blocked tasks → spawns next wave
+5. Each agent reads `protocol.md` → `roles/{key}.md` → `tasks.json`
+6. Agents claim tasks, write deliverables to `artifacts/`, message via `mailbox/`
+7. Agents update `heartbeat/{key}.json` so the lead can monitor liveness
+8. Lead runs `team status` or `team watch` to see the dashboard
 
 ### Mailbox Protocol
 
@@ -300,16 +316,20 @@ Lead (your session)
 
 | Command | Description |
 |---------|-------------|
+| `team plan <scenario> [template-seed]` | AI-generate a team plan (3 assessors → synthesizer) |
+| `team apply` | Review and create a team from the proposed plan |
 | `team init <name> <scenario> [template]` | Create a team (optionally from a preset template) |
 | `team role <name> <key> <desc> [model]` | Add a role manually (generates role file) |
 | `team task <name> <id> <title> <role> [deps]` | Add a task (deps: comma-separated task IDs) |
-| `team launch <name> [role]` | Spawn terminal tabs (all roles, or a specific one) |
+| `team launch <name>` | Orchestrate: spawn waves, wait for completion, unblock, repeat |
+| `team launch <name> <role>` | Spawn a single role (manual, non-blocking) |
+| `team unblock <name>` | Transition blocked tasks to pending when deps are met |
 | `team status <name>` | Dashboard with heartbeats and task progress |
 | `team watch <name>` | Live auto-refreshing dashboard (3s interval) |
 | `team list` | List all teams |
 | `team clean <name>` | Remove a team and its directory |
 
-### Manual Setup (Without Templates)
+### Manual Setup (Without Templates or Planner)
 
 ```powershell
 team init calculator "Build a calculator CLI"
@@ -341,17 +361,29 @@ From the [Multi-Agent Playbook](https://github.com/aviraldua93/multi-agent-playb
 
 Agents are instructed to auto-file GitHub issues on [`aviraldua93/agent-teams`](https://github.com/aviraldua93/agent-teams) when they encounter coordination system bugs (task corruption, heartbeat failures, mailbox conflicts). This dogfoods the tool and surfaces real-world edge cases.
 
+### Known Limitations
+
+- **Orchestrated mode uses `-p` (plain output).** When `team launch` runs the full orchestrator, agents are spawned with `copilot -p` (non-interactive) so the process exits on completion and triggers the `.done` signal file. Single-role launch (`team launch <name> <role>`) uses `-i` (interactive TUI) instead.
+
 ---
 
 ## 🗺️ Roadmap
 
 - [x] `team watch` — live auto-refreshing dashboard
-- [x] Role preset templates (feature, bugfix, refactor, research, fullstack)
+- [x] Role preset templates (feature, bugfix, refactor, research, fullstack, sprint, ship, audit)
 - [x] Heartbeat liveness monitoring
 - [x] Session logging via `Start-Transcript`
 - [x] Mailbox-based inter-agent messaging
 - [x] YAML frontmatter role files with tool permissions
-- [ ] `team unblock` — auto-transition blocked tasks when deps complete
+- [x] `team plan` / `team apply` — AI-generated planning with 3 assessors + synthesizer
+- [x] Feasibility gate (go / risky / no-go) with confidence scoring
+- [x] Acceptance criteria on tasks (sprint contracts)
+- [x] `team unblock` — auto-transition blocked tasks when deps complete
+- [x] Wave-based orchestrator with 3-probe completion detection
+- [x] Signal-based blocking for `team plan` and `team launch`
+- [ ] TUI for orchestrated mode ([#10](https://github.com/aviraldua93/agent-teams/issues/10))
+- [ ] Data science templates ([#11](https://github.com/aviraldua93/agent-teams/issues/11))
+- [ ] File locking ([#12](https://github.com/aviraldua93/agent-teams/issues/12))
 - [ ] Cross-platform support (Bun rewrite → single binary for Windows/macOS/Linux)
 - [ ] Web dashboard — browser-based live monitoring
 - [ ] Integration with [Conductor](https://github.com/microsoft/conductor) workflows
