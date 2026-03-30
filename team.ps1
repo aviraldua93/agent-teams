@@ -56,9 +56,19 @@ function Read-Json([string]$path) {
 
 function Write-Json([string]$path, $obj) {
     $tmp = "$path.tmp.$PID"
-    $obj | ConvertTo-Json -Depth 10 | Set-Content $tmp -Encoding UTF8
-    if (Test-Path $path) { Remove-Item $path -Force }
-    Move-Item $tmp $path -Force
+    try {
+        $obj | ConvertTo-Json -Depth 10 | Set-Content $tmp -Encoding UTF8
+        if (Test-Path $path) {
+            # Use .NET for atomic replace on Windows
+            [System.IO.File]::Replace($tmp, $path, $null)
+        } else {
+            Move-Item $tmp $path -Force
+        }
+    } catch {
+        # Fallback: direct overwrite (less safe but won't fail)
+        $obj | ConvertTo-Json -Depth 10 | Set-Content $path -Encoding UTF8
+        Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Append-Event([string]$teamDir, [string]$eventType, [string]$taskId, [string]$role, [string]$detail) {
@@ -1129,6 +1139,7 @@ function Show-Help {
     Write-Host "    launch <name>                              Orchestrate: spawn waves, wait, unblock, repeat" -ForegroundColor White
     Write-Host "    launch <name> <role>                       Spawn single role (manual, non-blocking)" -ForegroundColor White
     Write-Host "    unblock <name>                             Unblock tasks with met deps" -ForegroundColor White
+    Write-Host "    stop   <name>                              Stop all agents and reset tasks" -ForegroundColor White
     Write-Host "    status <name>                              Dashboard with heartbeats" -ForegroundColor White
     Write-Host "    watch  <name>                              Live dashboard (refreshes 3s)" -ForegroundColor White
     Write-Host "    plan   <scenario> [template-seed]          AI-generate a team plan (blocking)" -ForegroundColor White
@@ -1836,6 +1847,80 @@ Your task "$($task.id)" is now unblocked. Dependencies complete. Begin work.
     Write-Host ""
 }
 
+# ── stop ─────────────────────────────────────────────────────────────────────
+
+function Invoke-Stop([string]$teamName) {
+    if (-not $teamName) {
+        Write-Host "  Usage: team stop <name>" -ForegroundColor Yellow
+        return
+    }
+    Assert-TeamExists $teamName
+
+    $teamDir = Get-TeamDir $teamName
+
+    # Find running agent processes
+    $launchDir = Join-Path $teamDir ".launch"
+    $stopped = 0
+
+    Get-Process pwsh -ErrorAction SilentlyContinue | ForEach-Object {
+        try {
+            $cmd = (Get-CimInstance Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue).CommandLine
+            if ($cmd -match [regex]::Escape($launchDir)) {
+                Stop-Process -Id $_.Id -Force
+                $stopped++
+            }
+        } catch {}
+    }
+
+    # Also check for copilot processes linked to this team
+    Get-Process copilot -ErrorAction SilentlyContinue | ForEach-Object {
+        try {
+            $cmd = (Get-CimInstance Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue).CommandLine
+            if ($cmd -match [regex]::Escape($teamDir)) {
+                Stop-Process -Id $_.Id -Force
+                $stopped++
+            }
+        } catch {}
+    }
+
+    Write-Host "  🛑 Stopped $stopped process(es)" -ForegroundColor Red
+
+    # Reset in_progress tasks to pending
+    $tasksObj = Get-Tasks $teamName
+    $reset = 0
+    if ($tasksObj) {
+        foreach ($t in $tasksObj.tasks) {
+            if ($t.status -eq "in_progress") {
+                $t.status = "pending"
+                $reset++
+            }
+        }
+        if ($reset -gt 0) {
+            Save-Tasks $teamName $tasksObj
+            Write-Host "  ♻️  Reset $reset task(s) from in_progress → pending" -ForegroundColor Yellow
+        }
+    }
+
+    # Clean .done signals
+    $doneFiles = Get-ChildItem (Join-Path $teamDir ".launch") -Filter "*.done" -ErrorAction SilentlyContinue
+    if ($doneFiles) {
+        $doneFiles | Remove-Item -Force
+        Write-Host "  🗑️  Cleared $($doneFiles.Count) .done signal(s)" -ForegroundColor Gray
+    }
+
+    # Clear heartbeats
+    Get-ChildItem (Join-Path $teamDir "heartbeat") -Filter "*.json" -ErrorAction SilentlyContinue | Remove-Item -Force
+    Write-Host "  🗑️  Cleared heartbeats" -ForegroundColor Gray
+
+    # Log event
+    if (Get-Command Append-Event -ErrorAction SilentlyContinue) {
+        Append-Event $teamDir "team_stopped" "" "" "stopped $stopped processes, reset $reset tasks"
+    }
+
+    Write-Host ""
+    Write-Host "  Team '$teamName' stopped. Run 'team launch $teamName' to restart." -ForegroundColor Cyan
+}
+
 # ── Main Dispatch ───────────────────────────────────────────────────────────
 # IMPORTANT: Use $args[N] directly — do NOT assign to intermediate variable.
 # PowerShell has a scalar coercion bug when slicing single-element arrays.
@@ -1848,6 +1933,7 @@ switch ($args[0]) {
     "status" { Invoke-Status $args[1] }
     "watch"  { Invoke-Watch  $args[1] }
     "list"   { Invoke-List }
+    "stop"    { Invoke-Stop    $args[1] }
     "clean"   { Invoke-Clean   $args[1] }
     "unblock" { Invoke-Unblock $args[1] }
     "plan"    { Invoke-Plan   $args[1] $args[2] }
