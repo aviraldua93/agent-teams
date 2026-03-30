@@ -6,21 +6,21 @@
       "key": "investigator",
       "description": "Explores the codebase to reproduce and understand the root cause of the bug",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": false }
     },
     {
       "key": "fixer",
       "description": "Implements the fix based on the investigator's findings",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task", "edit", "create", "powershell"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": true, "code-review": false }
     },
     {
       "key": "reviewer",
       "description": "Reviews the fix for correctness, regressions, and edge cases",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task", "code-review"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task", "code-review"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": true }
     }
   ],

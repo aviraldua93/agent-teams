@@ -6,21 +6,21 @@
       "key": "architect",
       "description": "Explores codebase, designs the spec, defines file structure and interfaces",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": false }
     },
     {
       "key": "coder",
       "description": "Implements code from the architect's spec, writes tests, runs builds",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task", "edit", "create", "powershell"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": true, "code-review": false }
     },
     {
       "key": "reviewer",
       "description": "Reviews implementation for correctness, security, edge cases, and test coverage",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task", "code-review"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task", "code-review"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": true }
     }
   ],

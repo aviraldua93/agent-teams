@@ -6,28 +6,28 @@
       "key": "architect",
       "description": "Designs the API contract and UI spec, defines interfaces between frontend and backend",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": false }
     },
     {
       "key": "backend",
       "description": "Implements the API endpoints, data models, and server-side logic",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task", "edit", "create", "powershell"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": true, "code-review": false }
     },
     {
       "key": "frontend",
       "description": "Implements the UI components, pages, and client-side logic",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task", "edit", "create", "powershell"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": true, "code-review": false }
     },
     {
       "key": "reviewer",
       "description": "Reviews the full stack for correctness, API contract adherence, and integration issues",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task", "code-review"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task", "code-review"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": true }
     }
   ],

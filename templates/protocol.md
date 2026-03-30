@@ -26,6 +26,7 @@
 5. **Deliverables go in `artifacts/`** — the filename is specified in the task's `deliverable` field.
 6. **If blocked, say so** — set your heartbeat to `blocked`, write to `mailbox/lead.inbox` explaining what you're waiting on, and move to the next unblocked task if one exists.
 7. **Never modify another role's files** — read their artifacts, write your own.
+8. **Protocol-exempt writes** — All roles may write to: their heartbeat file, their task status in tasks.json, mailbox inboxes (append-only), and their owned artifacts — regardless of tool restrictions.
 
 ## Role File
 
@@ -130,6 +131,10 @@ After completing all your tasks:
 3. Send a final message to `mailbox/lead.inbox`.
 4. Set your heartbeat to `idle` with `current_task: null`.
 5. Stop and wait — do not start work outside your assigned tasks.
+
+## Model Precedence
+
+If your role file specifies a model, that takes precedence. Otherwise the manifest's default model is used. If neither is set, the Copilot CLI default applies.
 
 ## Reporting Tool Issues
 

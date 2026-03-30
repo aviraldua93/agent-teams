@@ -8,6 +8,9 @@ allowed_tools:
   - glob
   - grep
   - explore
+  - edit
+  - create
+  - powershell
 owns_files: []
 reads_from:
   - tasks.json

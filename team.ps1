@@ -171,6 +171,9 @@ function Invoke-Init([string]$teamName, [string]$scenario, [string]$templateName
         New-Item -ItemType Directory -Force -Path (Join-Path $dir $sub) | Out-Null
     }
 
+    # Pre-create lead inbox so agents can append from the start
+    Set-Content (Join-Path $dir "mailbox\lead.inbox") "" -Encoding UTF8
+
     # Manifest
     $manifest = [ordered]@{
         team        = $teamName
@@ -259,7 +262,7 @@ function Invoke-Role([string]$teamName, [string]$roleKey, [string]$description, 
     $roleName = (Get-Culture).TextInfo.ToTitleCase(($roleKey -replace '-', ' '))
 
     # Default allowed tools per common role patterns
-    $allowedTools = @("Read", "glob", "grep", "explore")
+    $allowedTools = @("view", "glob", "grep", "explore")
 
     $ownsFiles  = @("artifacts/$roleKey-output.md")
     $readsFrom  = @("tasks.json", "protocol.md", "manifest.json", "mailbox/$roleKey.inbox")

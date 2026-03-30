@@ -6,28 +6,28 @@
       "key": "explorer",
       "description": "Maps the codebase, identifies what needs to change, and documents the refactoring plan",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": false }
     },
     {
       "key": "coder",
       "description": "Makes the refactoring changes according to the explorer's plan",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task", "edit", "create", "powershell"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": true, "code-review": false }
     },
     {
       "key": "tester",
       "description": "Runs existing tests and writes new tests to verify the refactoring is safe",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task", "edit", "create", "powershell"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": true, "code-review": false }
     },
     {
       "key": "reviewer",
       "description": "Reviews all changes for regressions, correctness, and code quality",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task", "code-review"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task", "code-review"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": true }
     }
   ],

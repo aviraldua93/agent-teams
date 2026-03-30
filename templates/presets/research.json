@@ -6,28 +6,28 @@
       "key": "researcher-1",
       "description": "Investigates the first angle of the research question, explores code and docs",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": false }
     },
     {
       "key": "researcher-2",
       "description": "Investigates the second angle of the research question, explores code and docs",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": false }
     },
     {
       "key": "researcher-3",
       "description": "Investigates the third angle of the research question, explores code and docs",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": false }
     },
     {
       "key": "synthesizer",
       "description": "Reads all researcher findings and writes a unified summary with recommendations",
       "model": null,
-      "allowed_tools": ["view", "glob", "grep", "explore", "task", "edit", "create"],
+      "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": false }
     }
   ],
