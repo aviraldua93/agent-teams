@@ -12,24 +12,32 @@ Each agent runs in its own terminal tab with a dedicated role, tools, and file o
 [![GitHub Issues](https://img.shields.io/github/issues/aviraldua93/agent-teams)](https://github.com/aviraldua93/agent-teams/issues)
 ![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen)
 
-```
-  ┌──────────────┐
-  │  You (Lead)  │──── team plan → team apply → team launch
-  └──────┬───────┘
-         │ spawns terminal tabs
-    ┌────┴─────┬────────────┬────────────┐
-    ▼          ▼            ▼            ▼
-┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-│Architect │ │ Backend  │ │ Frontend │ │ Reviewer │  4 independent
-│ designs  │ │ API +    │ │ UI +     │ │ security │  Copilot CLI
-│ the spec │ │ database │ │ routing  │ │ + tests  │  sessions
-└────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘
-     │            │            │             │
-     ▼            ▼            ▼             ▼
-┌──────────────────────────────────────────────────┐
-│  .agent-teams/{name}/                            │  Shared filesystem
-│  tasks.json → artifacts/ → mailbox/ → heartbeat/ │  = coordination layer
-└──────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    Lead["🧑‍💼 You (Lead Session)"]
+    Lead -->|"team plan → team apply → team launch"| Architect
+    Lead --> Backend
+    Lead --> Frontend
+    Lead --> Reviewer
+
+    Architect["🏗️ Architect<br/>designs spec"]
+    Backend["⚙️ Backend<br/>API + database"]
+    Frontend["🎨 Frontend<br/>UI + routing"]
+    Reviewer["🔍 Reviewer<br/>security + tests"]
+
+    Architect --> FS
+    Backend --> FS
+    Frontend --> FS
+    Reviewer --> FS
+
+    FS[".agent-teams/{name}/<br/>tasks.json · artifacts/ · mailbox/ · heartbeat/"]
+
+    style Lead fill:#4a90d9,color:#fff,stroke:none
+    style Architect fill:#6c5ce7,color:#fff,stroke:none
+    style Backend fill:#00b894,color:#fff,stroke:none
+    style Frontend fill:#fdcb6e,color:#000,stroke:none
+    style Reviewer fill:#e17055,color:#fff,stroke:none
+    style FS fill:#2d3436,color:#fff,stroke:#636e72
 ```
 
 ---
