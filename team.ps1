@@ -1014,6 +1014,38 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
     # Final status
     Write-Host ""
     Invoke-Status $teamName
+
+    # ── Execution Summary ─────────────────────────────────────────────────
+    $totalTime = [math]::Round(((Get-Date) - $orchestratorStart).TotalSeconds)
+    $totalMin = [math]::Floor($totalTime / 60)
+    $totalSec = $totalTime % 60
+
+    Write-Host ""
+    Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "  ║  EXECUTION SUMMARY                           ║" -ForegroundColor Cyan
+    Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Total time: ${totalMin}m ${totalSec}s" -ForegroundColor White
+    Write-Host "  Waves: $($waveSummary.Count)" -ForegroundColor White
+    Write-Host ""
+    foreach ($ws in $waveSummary) {
+        Write-Host "  Wave $($ws.Wave): $($ws.Roles) ($($ws.Duration)s)" -ForegroundColor Gray
+    }
+    Write-Host ""
+
+    $tasksObj = Get-Tasks $teamName
+    $totalTasks = @($tasksObj.tasks).Count
+    $doneTasks = @($tasksObj.tasks | Where-Object { $_.status -eq "done" }).Count
+    $failedTasks = @($tasksObj.tasks | Where-Object { $_.status -eq "failed" }).Count
+
+    Write-Host "  Agents spawned: $totalSpawned" -ForegroundColor White
+    Write-Host "  Tasks completed: $doneTasks/$totalTasks" -ForegroundColor $(if ($doneTasks -eq $totalTasks) { "Green" } else { "Yellow" })
+    if ($failedTasks -gt 0) { Write-Host "  Failed tasks: $failedTasks" -ForegroundColor Red }
+    if ($totalRecoveries -gt 0) { Write-Host "  Auto-recoveries: $totalRecoveries" -ForegroundColor Yellow }
+    if ($totalDeadAgents -gt 0) { Write-Host "  Dead agents: $totalDeadAgents" -ForegroundColor Red }
+    Write-Host ""
+
+    Write-OrchestratorLog $teamDir "Execution complete: ${totalMin}m ${totalSec}s, $($waveSummary.Count) waves, $doneTasks/$totalTasks tasks"
 }
 
 
