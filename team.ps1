@@ -1269,7 +1269,7 @@ After writing proposed-plan.json, say "Plan written to proposed-plan.json" and s
 Set-Location '$($projectDir -replace "'","''")'
 Start-Transcript -Path '$($planDir -replace "'","''")\$role.log' -Append
 `$promptText = Get-Content '$($promptFile -replace "'","''")' -Raw
-copilot -i `$promptText --add-dir '$($planDir -replace "'","''")' --yolo
+copilot -p `$promptText --add-dir '$($planDir -replace "'","''")' --yolo
 Stop-Transcript
 Set-Content '$($doneFile -replace "'","''")' (Get-Date -Format 'o') -Encoding UTF8
 "@
