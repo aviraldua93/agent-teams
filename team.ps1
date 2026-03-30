@@ -74,6 +74,16 @@ function Write-Json([string]$path, $obj) {
     }
 }
 
+function Get-StalenessSeconds([string]$timestamp) {
+    # Parse heartbeat timestamps safely, handling both UTC and local formats
+    try {
+        $parsed = [DateTimeOffset]::Parse($timestamp)
+        return [math]::Round(([DateTimeOffset]::UtcNow - $parsed).TotalSeconds)
+    } catch {
+        return 9999  # unparseable = assume stale
+    }
+}
+
 function Append-Event([string]$teamDir, [string]$eventType, [string]$taskId, [string]$role, [string]$detail) {
     $logPath = Join-Path $teamDir "events.log"
     $entry = "$(Get-Date -Format 'o')|$eventType|$taskId|$role|$detail"
@@ -571,9 +581,10 @@ HEARTBEAT: You MUST maintain a heartbeat file so the team lead can monitor you.
 File: $heartbeatPath
 Update this file after starting each task and periodically while working.
 Write valid JSON with this schema:
-  {"status": "<active|idle|done>", "current_task": "<task-id or null>", "last_active": "<ISO-8601 UTC>", "pid": <your-process-id-or-0>}
+  {"status": "<active|idle|done>", "current_task": "<task-id or null>", "last_active": "<ISO-8601 UTC with Z suffix>", "pid": <your-process-id-or-0>}
 Example:
-  {"status": "active", "current_task": "design-spec", "last_active": "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ssZ')", "pid": 0}
+  {"status": "active", "current_task": "design-spec", "last_active": "$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))", "pid": 0}
+IMPORTANT: last_active MUST be UTC with Z suffix. Use this exact PowerShell to generate it: (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 Update "last_active" each time you write. Set status to "idle" between tasks, "done" when all tasks complete.
 "@
 
@@ -684,7 +695,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
                 if (Test-Path $hbPath) {
                     try {
                         $hb = Get-Content $hbPath -Raw -Encoding UTF8 | ConvertFrom-Json
-                        $staleSecs = ((Get-Date) - [DateTime]::Parse($hb.last_active)).TotalSeconds
+                        $staleSecs = (Get-StalenessSeconds $hb.last_active)
                         if ($staleSecs -lt 120) { $agentAlive = $true }
                     } catch {}
                 }
@@ -810,7 +821,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
             if (Test-Path $existingHbPath) {
                 try {
                     $existingHb = Get-Content $existingHbPath -Raw -Encoding UTF8 | ConvertFrom-Json
-                    $existingStale = ((Get-Date) - [DateTime]::Parse($existingHb.last_active)).TotalSeconds
+                    $existingStale = (Get-StalenessSeconds $existingHb.last_active)
                     if ($existingStale -lt 120) {
                         Write-Host "    ⏭️  $($roleProp.Value.name) ($roleKey) — already running (heartbeat ${existingStale}s ago)" -ForegroundColor Yellow
                         # Still track the .done file so we wait for it
@@ -873,8 +884,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
                 if (Test-Path $hbPath) {
                     try {
                         $hb = Get-Content $hbPath -Raw -Encoding UTF8 | ConvertFrom-Json
-                        $lastActive = [DateTime]::Parse($hb.last_active)
-                        $staleSecs = ((Get-Date) - $lastActive).TotalSeconds
+                        $staleSecs = Get-StalenessSeconds $hb.last_active
                         if ($staleSecs -gt 120) {
                             # Heartbeat stale > 2 min — agent likely dead
                             $deadAgents += $roleKey
@@ -974,8 +984,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
                     if (Test-Path $hbPath) {
                         try {
                             $hb = Get-Content $hbPath -Raw -Encoding UTF8 | ConvertFrom-Json
-                            $lastActive = [DateTime]::Parse($hb.last_active)
-                            $staleSecs = ((Get-Date) - $lastActive).TotalSeconds
+                            $staleSecs = Get-StalenessSeconds $hb.last_active
                             if ($staleSecs -lt 120) { $aliveCount++ }
                         } catch {}
                     }
@@ -2082,3 +2091,4 @@ switch ($args[0]) {
     "apply"  { Invoke-Apply }
     default  { Show-Help }
 }
+
