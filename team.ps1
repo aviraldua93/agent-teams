@@ -64,6 +64,9 @@ function Write-Json([string]$path, $obj) {
         } else {
             Move-Item $tmp $path -Force
         }
+    } catch [System.IO.FileNotFoundException] {
+        # TOCTOU: destination deleted between Test-Path and Replace
+        Move-Item $tmp $path -Force
     } catch {
         # Fallback: direct overwrite (less safe but won't fail)
         $obj | ConvertTo-Json -Depth 10 | Set-Content $path -Encoding UTF8
