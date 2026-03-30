@@ -764,7 +764,8 @@ function Show-Help {
     Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  COMMANDS" -ForegroundColor Yellow
-    Write-Host "    init   <name> <scenario> [template]        Create a new team (templates: feature, research, bugfix, refactor, fullstack)" -ForegroundColor White
+    Write-Host "    init   <name> <scenario> [template]        Create a new team" -ForegroundColor White
+    Write-Host "           templates: feature, fullstack, sprint, bugfix, refactor, research, ship, audit" -ForegroundColor Gray
     Write-Host "    role   <name> <key> <description> [model]  Add a role (generates role file)" -ForegroundColor White
     Write-Host "    task   <name> <id> <title> <role> [deps]   Add a task" -ForegroundColor White
     Write-Host "    launch <name> [role]                       Spawn agent tabs (with logs)" -ForegroundColor White

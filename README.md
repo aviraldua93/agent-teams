@@ -116,10 +116,13 @@ Five preset templates so you don't have to define roles and tasks from scratch.
 | Template | Roles | Tasks | Use Case |
 |----------|-------|-------|----------|
 | **`feature`** | architect, coder, reviewer | design → implement → review | Standard feature development |
+| **`fullstack`** | architect, backend, frontend, reviewer | design → backend + frontend → review | Full-stack features spanning API + UI |
+| **`sprint`** | pm, architect, coder, qa, reviewer | scope → design → implement → QA + review | Full sprint team with PM and QA |
 | **`bugfix`** | investigator, fixer, reviewer | investigate → fix → review | Bug investigation and patching |
 | **`refactor`** | explorer, refactorer, tester, reviewer | map → refactor → test → review | Safe codebase refactoring |
-| **`research`** | researcher-1, researcher-2, researcher-3, synthesizer | research ×3 → synthesize | Parallel investigation with synthesis |
-| **`fullstack`** | architect, backend, frontend, reviewer | design → backend + frontend → review | Full-stack features spanning API + UI |
+| **`research`** | researcher ×3, synthesizer | research ×3 → synthesize | Parallel investigation with synthesis |
+| **`ship`** | release-manager, qa, reviewer | QA + review → ship | Release workflow with QA gate |
+| **`audit`** | security, perf, quality, synthesizer | 3 parallel audits → synthesize | Parallel code audit with prioritized findings |
 
 ```powershell
 team init auth-flow "Add OAuth2 login flow" feature
