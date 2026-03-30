@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 # ============================================================================
 # team.ps1 — Agent Teams for GitHub Copilot CLI
-# Version: 0.4.0
+# Version: 0.5.0
 #
 # Coordinates multiple Copilot CLI sessions as specialized agents.
 # Each agent runs in its own terminal tab with a role-specific prompt,
@@ -410,12 +410,128 @@ $body
     Write-Host ""
 }
 
+# ── Helper: Role Launcher ───────────────────────────────────────────────────
+# Builds prompt, writes launcher script, and spawns a terminal tab for one role.
+# If DoneFile is provided, the launcher writes a signal file after copilot exits.
+function New-RoleLauncher {
+    param(
+        [string]$TeamName,
+        [string]$RoleKey,
+        [PSObject]$Role,
+        [string]$ProjectDir,
+        [string]$TeamDir,
+        [string]$DoneFile
+    )
+
+    $launchDir = Join-Path $TeamDir ".launch"
+
+    # Resolve role file for instructions
+    $roleFilePath = Join-Path $TeamDir "roles\$RoleKey.md"
+    $roleInstructions = ""
+    if (Test-Path $roleFilePath) {
+        $roleInstructions = Read-RoleBody $roleFilePath
+    }
+
+    # Build tool permissions block
+    $toolsList = @($Role.allowed_tools)
+    $toolsBlock = ""
+    if ($toolsList.Count -gt 0) {
+        $toolLines = ($toolsList | ForEach-Object { "  - $_" }) -join "`n"
+        $toolsBlock = @"
+
+YOUR ALLOWED TOOLS (use only these):
+$toolLines
+"@
+    }
+
+    # Build file ownership block
+    $ownsList  = (@($Role.owns_files)  | ForEach-Object { "  - $_" }) -join "`n"
+    $readsList = (@($Role.reads_from)  | ForEach-Object { "  - $_" }) -join "`n"
+
+    # Heartbeat instructions
+    $manifest = Get-Manifest $TeamName
+    $heartbeatPath = "$TeamDir\heartbeat\$RoleKey.json"
+    $heartbeatBlock = @"
+
+HEARTBEAT: You MUST maintain a heartbeat file so the team lead can monitor you.
+File: $heartbeatPath
+Update this file after starting each task and periodically while working.
+Write valid JSON with this schema:
+  {"status": "<active|idle|done>", "current_task": "<task-id or null>", "last_active": "<ISO-8601 UTC>", "pid": <your-process-id-or-0>}
+Example:
+  {"status": "active", "current_task": "design-spec", "last_active": "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ssZ')", "pid": 0}
+Update "last_active" each time you write. Set status to "idle" between tasks, "done" when all tasks complete.
+"@
+
+    # Compose the full prompt
+    $prompt = @"
+You are the $($Role.name) on agent team "$TeamName".
+
+TEAM DIRECTORY: $TeamDir
+PROJECT DIRECTORY: $ProjectDir
+
+YOUR ROLE FILE: $roleFilePath
+Read this file for your full role definition and instructions.
+
+YOUR STARTUP SEQUENCE:
+1. Read $TeamDir\protocol.md for your operating rules.
+2. Read your role file at $roleFilePath for your specific instructions.
+3. Read $TeamDir\manifest.json and find your role "$RoleKey" under "roles".
+4. Read $TeamDir\tasks.json and find tasks where assigned_to is "$RoleKey".
+5. Write your initial heartbeat to $heartbeatPath.
+6. Execute your tasks following the protocol. Write deliverables to artifacts/.
+
+SCENARIO: $($manifest.scenario)
+
+YOUR ROLE: $($Role.description)
+$toolsBlock
+
+FILES YOU OWN (only you write these):
+$ownsList
+
+FILES YOU READ FROM:
+$readsList
+$heartbeatBlock
+
+$roleInstructions
+
+IMPORTANT: Begin by reading protocol.md now. Then read your role file, then tasks.json, then start working.
+"@
+
+    # Write prompt to file
+    $promptFile = Join-Path $launchDir "$RoleKey.prompt"
+    Set-Content $promptFile $prompt -Encoding UTF8
+
+    # Write launcher script (with optional .done signal)
+    $modelFlag = if ($Role.model) { " --model `"$($Role.model)`"" } else { "" }
+    $logFile = "$TeamDir\logs\$RoleKey.log"
+
+    $signalLine = ""
+    if ($DoneFile) {
+        $signalLine = "`nSet-Content '$($DoneFile -replace "'","''")' (Get-Date -Format 'o') -Encoding UTF8"
+    }
+
+    $launcherScript = @"
+Set-Location '$($ProjectDir -replace "'","''")'
+Start-Transcript -Path '$($logFile -replace "'","''")' -Append
+`$promptText = Get-Content '$($promptFile -replace "'","''")' -Raw
+copilot -i `$promptText --add-dir '$($TeamDir -replace "'","''")' --yolo$modelFlag
+Stop-Transcript$signalLine
+"@
+    $launcherFile = Join-Path $launchDir "launch-$RoleKey.ps1"
+    Set-Content $launcherFile $launcherScript -Encoding UTF8
+
+    # Spawn terminal tab
+    $tabTitle = "$($Role.name) ($TeamName)"
+    Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"$tabTitle`" pwsh -NoExit -File `"$launcherFile`""
+}
+
+
 # ── launch ──────────────────────────────────────────────────────────────────
-# Spawns Copilot CLI sessions in new terminal tabs. Each agent gets:
-#   - A prompt pointing to its role file (roles/{key}.md)
-#   - Heartbeat instructions (agent writes heartbeat/{key}.json periodically)
-#   - Tool permission constraints from allowed_tools
-#   - Session logging via Tee-Object to logs/{key}.log
+# Spawns Copilot CLI sessions in new terminal tabs.
+# Single-role launch: fire-and-forget (for manual use).
+# Full team launch: wave-based blocking orchestrator — spawns roles with
+# pending tasks, waits for .done signals, runs unblock, spawns next wave.
 function Invoke-Launch([string]$teamName, [string]$specificRole) {
     if (-not $teamName) {
         Write-Host "  Usage: team launch <name> [role]" -ForegroundColor Yellow
@@ -433,170 +549,115 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
         New-Item -ItemType Directory -Force -Path (Join-Path $teamDir $sub) | Out-Null
     }
 
-    $roles = $manifest.roles.PSObject.Properties
     if ($specificRole) {
-        $roles = @($roles | Where-Object { $_.Name -eq $specificRole })
-        if ($roles.Count -eq 0) {
+        # ── Single-role launch (fire-and-forget) ──────────────────────────
+        $roleProp = $manifest.roles.PSObject.Properties | Where-Object { $_.Name -eq $specificRole }
+        if (-not $roleProp) {
             Write-Host "  Error: Role '$specificRole' not found in team '$teamName'" -ForegroundColor Red
             return
         }
+
+        Write-Host ""
+        Write-Host "  `u{1F680} Launching '$specificRole' in team '$teamName'" -ForegroundColor Cyan
+        Write-Host ""
+
+        New-RoleLauncher -TeamName $teamName -RoleKey $specificRole -Role $roleProp.Value `
+            -ProjectDir $projectDir -TeamDir $teamDir
+
+        Write-Host "  `u{1F7E2} $($roleProp.Value.name) ($specificRole)" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "  Agent launched! Check your terminal tabs." -ForegroundColor Cyan
+        Write-Host ""
+        return
     }
 
-    # ── Check which roles have pending work vs all-blocked ────────────────
-    $tasksObj = Get-Tasks $teamName
-    $skippedRoles = @()
-    $readyRoles = @()
+    # ── Full orchestrated launch ──────────────────────────────────────────
 
-    foreach ($roleProp in $roles) {
-        $key = $roleProp.Name
-        $roleTasks = @($tasksObj.tasks | Where-Object { $_.assigned_to -eq $key })
-        $pendingTasks = @($roleTasks | Where-Object { $_.status -eq "pending" })
+    Write-Host ""
+    Write-Host "  `u{1F680} Orchestrating team '$teamName'" -ForegroundColor Cyan
+    Write-Host ""
 
-        if ($roleTasks.Count -gt 0 -and $pendingTasks.Count -eq 0) {
-            # All tasks are blocked (or done/in_progress with none pending)
-            $blockedTasks = @($roleTasks | Where-Object { $_.status -eq "blocked" })
-            if ($blockedTasks.Count -gt 0) {
-                $waitingOn = @()
-                foreach ($bt in $blockedTasks) {
-                    $waitingOn += @($bt.depends_on)
-                }
-                $waitingOn = @($waitingOn | Select-Object -Unique)
-                $skippedRoles += [PSCustomObject]@{
-                    Key       = $key
-                    Role      = $roleProp.Value
-                    WaitingOn = $waitingOn
-                }
-                continue
+    $waveNum = 0
+    while ($true) {
+        $waveNum++
+        $tasksObj = Get-Tasks $teamName  # Re-read each wave
+
+        # Find roles with pending tasks
+        $pendingRoles = @()
+        foreach ($task in $tasksObj.tasks) {
+            if ($task.status -eq "pending" -and $pendingRoles -notcontains $task.assigned_to) {
+                $pendingRoles += $task.assigned_to
             }
         }
-        $readyRoles += $roleProp
-    }
 
-    Write-Host ""
-    Write-Host "  🚀 Launching team '$teamName'" -ForegroundColor Cyan
-    Write-Host ""
-
-    foreach ($roleProp in $readyRoles) {
-        $key  = $roleProp.Name
-        $role = $roleProp.Value
-
-        # ── Resolve role file for instructions ─────────────────────────────
-        $roleFilePath = Join-Path $teamDir "roles\$key.md"
-        $roleInstructions = ""
-        if (Test-Path $roleFilePath) {
-            $roleInstructions = Read-RoleBody $roleFilePath
+        if ($pendingRoles.Count -eq 0) {
+            $blockedCount = @($tasksObj.tasks | Where-Object { $_.status -eq "blocked" }).Count
+            if ($blockedCount -gt 0) {
+                Write-Host "  `u{26A0}`u{FE0F}  $blockedCount tasks still blocked `u{2014} dependencies may not have been marked done" -ForegroundColor Yellow
+            } else {
+                Write-Host "  `u{2705} All waves complete!" -ForegroundColor Green
+            }
+            break
         }
 
-        # ── Build tool permissions block ───────────────────────────────────
-        $toolsList = @($role.allowed_tools)
-        $toolsBlock = ""
-        if ($toolsList.Count -gt 0) {
-            $toolLines = ($toolsList | ForEach-Object { "  - $_" }) -join "`n"
-            $toolsBlock = @"
+        Write-Host "  `u{2500}`u{2500} Wave $waveNum `u{2500}`u{2500}" -ForegroundColor Cyan
 
-YOUR ALLOWED TOOLS (use only these):
-$toolLines
-"@
+        # Spawn this wave's roles
+        $doneFiles = @{}
+        foreach ($roleKey in $pendingRoles) {
+            $roleProp = $manifest.roles.PSObject.Properties | Where-Object { $_.Name -eq $roleKey }
+            if (-not $roleProp) { continue }
+
+            $doneFile = Join-Path $launchDir "$roleKey.done"
+            $doneFiles[$roleKey] = $doneFile
+            # Remove old .done file to avoid stale signals
+            Remove-Item $doneFile -Force -ErrorAction SilentlyContinue
+
+            New-RoleLauncher -TeamName $teamName -RoleKey $roleKey -Role $roleProp.Value `
+                -ProjectDir $projectDir -TeamDir $teamDir -DoneFile $doneFile
+
+            Write-Host "    `u{1F7E2} $($roleProp.Value.name) ($roleKey)" -ForegroundColor Green
+            Start-Sleep -Milliseconds 800
         }
 
-        # ── Build file ownership block ─────────────────────────────────────
-        $ownsList  = (@($role.owns_files)  | ForEach-Object { "  - $_" }) -join "`n"
-        $readsList = (@($role.reads_from)  | ForEach-Object { "  - $_" }) -join "`n"
-
-        # ── Heartbeat instructions ─────────────────────────────────────────
-        $heartbeatPath = "$teamDir\heartbeat\$key.json"
-        $heartbeatBlock = @"
-
-HEARTBEAT: You MUST maintain a heartbeat file so the team lead can monitor you.
-File: $heartbeatPath
-Update this file after starting each task and periodically while working.
-Write valid JSON with this schema:
-  {"status": "<active|idle|done>", "current_task": "<task-id or null>", "last_active": "<ISO-8601 UTC>", "pid": <your-process-id-or-0>}
-Example:
-  {"status": "active", "current_task": "design-spec", "last_active": "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ssZ')", "pid": 0}
-Update "last_active" each time you write. Set status to "idle" between tasks, "done" when all tasks complete.
-"@
-
-        # ── Compose the full prompt ────────────────────────────────────────
-        $prompt = @"
-You are the $($role.name) on agent team "$teamName".
-
-TEAM DIRECTORY: $teamDir
-PROJECT DIRECTORY: $projectDir
-
-YOUR ROLE FILE: $roleFilePath
-Read this file for your full role definition and instructions.
-
-YOUR STARTUP SEQUENCE:
-1. Read $teamDir\protocol.md for your operating rules.
-2. Read your role file at $roleFilePath for your specific instructions.
-3. Read $teamDir\manifest.json and find your role "$key" under "roles".
-4. Read $teamDir\tasks.json and find tasks where assigned_to is "$key".
-5. Write your initial heartbeat to $heartbeatPath.
-6. Execute your tasks following the protocol. Write deliverables to artifacts/.
-
-SCENARIO: $($manifest.scenario)
-
-YOUR ROLE: $($role.description)
-$toolsBlock
-
-FILES YOU OWN (only you write these):
-$ownsList
-
-FILES YOU READ FROM:
-$readsList
-$heartbeatBlock
-
-$roleInstructions
-
-IMPORTANT: Begin by reading protocol.md now. Then read your role file, then tasks.json, then start working.
-"@
-
-        # Write prompt to file (avoids quoting hell in process args)
-        $promptFile = Join-Path $launchDir "$key.prompt"
-        Set-Content $promptFile $prompt -Encoding UTF8
-
-        # ── Write launcher script ──────────────────────────────────────────
-        # The launcher: sets dir, runs copilot, tees output to logs/{key}.log
-        $modelFlag = if ($role.model) { " --model `"$($role.model)`"" } else { "" }
-        $logFile = "$teamDir\logs\$key.log"
-
-        $launcherScript = @"
-Set-Location '$($projectDir -replace "'","''")'
-Start-Transcript -Path '$($logFile -replace "'","''")' -Append
-`$promptText = Get-Content '$($promptFile -replace "'","''")' -Raw
-copilot -i `$promptText --add-dir '$($teamDir -replace "'","''")' --yolo$modelFlag
-Stop-Transcript
-"@
-        $launcherFile = Join-Path $launchDir "launch-$key.ps1"
-        Set-Content $launcherFile $launcherScript -Encoding UTF8
-
-        # ── Spawn terminal tab ─────────────────────────────────────────────
-        $tabTitle = "$($role.name) ($teamName)"
-        Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"$tabTitle`" pwsh -NoExit -File `"$launcherFile`""
-
-        Write-Host "  🟢 $($role.name) ($key)" -ForegroundColor Green
-        Start-Sleep -Milliseconds 800  # stagger to avoid terminal race
-    }
-
-    # Show skipped (blocked) roles
-    if ($skippedRoles.Count -gt 0) {
+        # Wait for this wave to complete
         Write-Host ""
-        Write-Host "  Skipped (blocked):" -ForegroundColor Yellow
-        foreach ($sr in $skippedRoles) {
-            $roleName = $sr.Role.name
-            Write-Host "    `u{23F8}`u{FE0F}  $roleName ($($sr.Key)) — all tasks blocked, will launch when unblocked" -ForegroundColor DarkYellow
-            Write-Host "    `u{23F8}`u{FE0F}  $($sr.Key) — waiting on: $($sr.WaitingOn -join ', ')" -ForegroundColor Gray
+        $startTime = Get-Date
+        while ($true) {
+            Start-Sleep 5
+            $elapsed = [math]::Round(((Get-Date) - $startTime).TotalSeconds)
+
+            $completed = @()
+            foreach ($roleKey in $pendingRoles) {
+                if (Test-Path $doneFiles[$roleKey]) { $completed += $roleKey }
+            }
+
+            $remaining = @($pendingRoles | Where-Object { $completed -notcontains $_ })
+            if ($remaining.Count -gt 0) {
+                Write-Host "    Waiting ($($elapsed)s): $($completed.Count)/$($pendingRoles.Count) done `u{2014} remaining: $($remaining -join ', ')" -ForegroundColor Gray
+            }
+
+            if ($completed.Count -eq $pendingRoles.Count) { break }
+
+            # Timeout per wave: 15 minutes
+            if ($elapsed -gt 900) {
+                Write-Host "    `u{26A0}`u{FE0F}  Wave timed out after 15 minutes" -ForegroundColor Red
+                break
+            }
         }
+
+        Write-Host "    `u{2705} Wave $waveNum complete" -ForegroundColor Green
         Write-Host ""
-        Write-Host "  Run 'team launch $teamName <role>' later when tasks unblock." -ForegroundColor Gray
+
+        # Unblock next wave
+        Invoke-Unblock $teamName
     }
 
+    # Final status
     Write-Host ""
-    Write-Host "  All agents launched! Check your terminal tabs." -ForegroundColor Cyan
-    Write-Host "  Run 'team status $teamName' to monitor progress." -ForegroundColor Gray
-    Write-Host ""
+    Invoke-Status $teamName
 }
+
 
 # ── status ──────────────────────────────────────────────────────────────────
 # Displays the full team dashboard: agents (with heartbeat), tasks, artifacts,
@@ -803,7 +864,7 @@ function Invoke-Clean([string]$teamName) {
 function Show-Help {
     Write-Host ""
     Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║  Agent Teams for GitHub Copilot CLI   v0.4  ║" -ForegroundColor Cyan
+    Write-Host "  ║  Agent Teams for GitHub Copilot CLI   v0.5  ║" -ForegroundColor Cyan
     Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  COMMANDS" -ForegroundColor Yellow
@@ -811,11 +872,12 @@ function Show-Help {
     Write-Host "           templates: feature, fullstack, sprint, bugfix, refactor, research, ship, audit" -ForegroundColor Gray
     Write-Host "    role   <name> <key> <description> [model]  Add a role (generates role file)" -ForegroundColor White
     Write-Host "    task   <name> <id> <title> <role> [deps]   Add a task" -ForegroundColor White
-    Write-Host "    launch <name> [role]                       Spawn agent tabs (with logs)" -ForegroundColor White
+    Write-Host "    launch <name>                              Orchestrate: spawn waves, wait, unblock, repeat" -ForegroundColor White
+    Write-Host "    launch <name> <role>                       Spawn single role (manual, non-blocking)" -ForegroundColor White
     Write-Host "    unblock <name>                             Unblock tasks with met deps" -ForegroundColor White
     Write-Host "    status <name>                              Dashboard with heartbeats" -ForegroundColor White
     Write-Host "    watch  <name>                              Live dashboard (refreshes 3s)" -ForegroundColor White
-    Write-Host "    plan   <scenario> [template-seed]          AI-generate a team plan" -ForegroundColor White
+    Write-Host "    plan   <scenario> [template-seed]          AI-generate a team plan (blocking)" -ForegroundColor White
     Write-Host "    apply                                      Create team from plan" -ForegroundColor White
     Write-Host "    list                                       List all teams" -ForegroundColor White
     Write-Host "    clean  <name>                              Remove a team" -ForegroundColor White
@@ -830,6 +892,13 @@ function Show-Help {
     Write-Host '    team task calculator review "Review the code" reviewer implement' -ForegroundColor Gray
     Write-Host "    team launch calculator" -ForegroundColor Gray
     Write-Host "    team status calculator" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  v0.5 FEATURES" -ForegroundColor Yellow
+    Write-Host "    - Signal-based blocking orchestrator for team plan and team launch" -ForegroundColor Gray
+    Write-Host "    - team plan: blocks, polls .done signals, spawns synthesizer after assessors" -ForegroundColor Gray
+    Write-Host "    - team launch: wave-based orchestrator with automatic unblock between waves" -ForegroundColor Gray
+    Write-Host "    - .done signal files written by launcher scripts after copilot exits" -ForegroundColor Gray
+    Write-Host "    - Prompt/launcher generation extracted to New-RoleLauncher helper" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  v0.4 FEATURES" -ForegroundColor Yellow
     Write-Host "    - team plan: AI-generated team planning via planner session" -ForegroundColor Gray
@@ -999,6 +1068,8 @@ function Invoke-Watch([string]$teamName) {
 # ── plan ─────────────────────────────────────────────────────────────────────
 # Spawns a planner Copilot session that explores the codebase and writes
 # a proposed team plan to .agent-teams/.plan/proposed-plan.json.
+# Assessors run in parallel, then synthesizer runs after all assessors complete.
+# Parent polls for .done signal files and shows live progress.
 function Invoke-Plan([string]$scenario, [string]$seedTemplate) {
     if (-not $scenario) {
         Write-Host "  Usage: team plan <scenario> [template-seed]" -ForegroundColor Yellow
@@ -1009,8 +1080,9 @@ function Invoke-Plan([string]$scenario, [string]$seedTemplate) {
     $planDir = Join-Path $projectDir ".agent-teams\.plan"
     New-Item -ItemType Directory -Force -Path $planDir | Out-Null
 
-    # Clean stale assessment files from any previous run
-    foreach ($stale in @("tech-assessment.md", "scope-assessment.md", "risk-assessment.md", "proposed-plan.json")) {
+    # Clean stale files from any previous run
+    foreach ($stale in @("tech-assessment.md", "scope-assessment.md", "risk-assessment.md", "proposed-plan.json",
+                         "tech-assessor.done", "scope-assessor.done", "risk-assessor.done", "synthesizer.done")) {
         $stalePath = Join-Path $planDir $stale
         if (Test-Path $stalePath) { Remove-Item $stalePath -Force }
     }
@@ -1119,16 +1191,12 @@ You are the SYNTHESIZER on a planning board.
 $commonContext
 
 YOUR TASK:
-1. Wait for all 3 assessment files to appear:
+1. Read all 3 assessment files (they are already complete):
    - $planDir\tech-assessment.md
    - $planDir\scope-assessment.md
    - $planDir\risk-assessment.md
 
-   Check every 15 seconds. If after 5 minutes any are missing, proceed with what you have.
-
-2. Read all assessments.
-
-3. Synthesize into a SINGLE proposed-plan.json at: $planDir\proposed-plan.json
+2. Synthesize into a SINGLE proposed-plan.json at: $planDir\proposed-plan.json
 
 OUTPUT FORMAT (proposed-plan.json):
 {
@@ -1186,15 +1254,17 @@ After writing proposed-plan.json, say "Plan written to proposed-plan.json" and s
     Set-Content (Join-Path $planDir "risk-assessor.prompt") $riskPrompt -Encoding UTF8
     Set-Content (Join-Path $planDir "synthesizer.prompt") $synthPrompt -Encoding UTF8
 
-    # Write launcher scripts for each assessor and synthesizer
+    # Write launcher scripts with .done signals
     foreach ($role in @("tech-assessor", "scope-assessor", "risk-assessor", "synthesizer")) {
         $promptFile = Join-Path $planDir "$role.prompt"
+        $doneFile = Join-Path $planDir "$role.done"
         $launcherScript = @"
 Set-Location '$($projectDir -replace "'","''")'
 Start-Transcript -Path '$($planDir -replace "'","''")\$role.log' -Append
 `$promptText = Get-Content '$($promptFile -replace "'","''")' -Raw
 copilot -i `$promptText --add-dir '$($planDir -replace "'","''")' --yolo
 Stop-Transcript
+Set-Content '$($doneFile -replace "'","''")' (Get-Date -Format 'o') -Encoding UTF8
 "@
         Set-Content (Join-Path $planDir "launch-$role.ps1") $launcherScript -Encoding UTF8
     }
@@ -1217,24 +1287,70 @@ Stop-Transcript
             "scope-assessor" { "evaluating scope and phasing" }
             "risk-assessor"  { "identifying risks and blockers" }
         }
-        Write-Host "  `u{1F7E2} $title — $desc" -ForegroundColor Green
+        Write-Host "  `u{1F7E2} $title `u{2014} $desc" -ForegroundColor Green
         Start-Sleep -Milliseconds 800
     }
 
-    # Spawn synthesizer after a short delay
-    $synthLauncher = Join-Path $planDir "launch-synthesizer.ps1"
-    Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"Synthesizer (planning)`" pwsh -File `"$synthLauncher`""
-    Write-Host "  `u{1F7E1} Synthesizer — waiting for assessments, will write proposed-plan.json" -ForegroundColor Yellow
+    # Poll for assessor completion, then spawn synthesizer
+    Write-Host ""
+    $startTime = Get-Date
+    $assessorRoles = @("tech-assessor", "scope-assessor", "risk-assessor")
+    $synthLaunched = $false
+
+    while ($true) {
+        Start-Sleep 5
+        $elapsed = [math]::Round(((Get-Date) - $startTime).TotalSeconds)
+
+        # Check assessor .done files
+        $assessorsDone = @()
+        foreach ($role in $assessorRoles) {
+            $doneFile = Join-Path $planDir "$role.done"
+            if (Test-Path $doneFile) { $assessorsDone += $role }
+        }
+
+        # If all assessors done and synthesizer not launched, launch it
+        if ($assessorsDone.Count -eq 3 -and -not $synthLaunched) {
+            $synthLauncher = Join-Path $planDir "launch-synthesizer.ps1"
+            Start-Process "wt.exe" -ArgumentList "-w 0 new-tab --title `"Synthesizer (planning)`" pwsh -File `"$synthLauncher`""
+            $synthLaunched = $true
+            Write-Host "`n  `u{1F7E2} Synthesizer `u{2014} launched (all assessments ready)" -ForegroundColor Yellow
+        }
+
+        # Check synthesizer done
+        $synthDone = Test-Path (Join-Path $planDir "synthesizer.done")
+
+        # Display progress
+        Write-Host "`r  Progress ($($elapsed)s):" -NoNewline -ForegroundColor Gray
+        foreach ($role in $assessorRoles) {
+            if ($assessorsDone -contains $role) {
+                Write-Host " `u{2705}$role" -NoNewline -ForegroundColor Green
+            } else {
+                Write-Host " `u{1F504}$role" -NoNewline -ForegroundColor Yellow
+            }
+        }
+        if ($synthLaunched -and $synthDone) {
+            Write-Host " `u{2705}synthesizer" -NoNewline -ForegroundColor Green
+        } elseif ($synthLaunched) {
+            Write-Host " `u{1F504}synthesizer" -NoNewline -ForegroundColor Yellow
+        } else {
+            Write-Host " `u{23F8}`u{FE0F}synth" -NoNewline -ForegroundColor DarkGray
+        }
+        Write-Host ""
+
+        if ($synthDone) { break }
+
+        # Timeout after 10 minutes
+        if ($elapsed -gt 600) {
+            Write-Host "`n  `u{26A0}`u{FE0F}  Planning timed out after 10 minutes." -ForegroundColor Red
+            break
+        }
+    }
 
     Write-Host ""
-    Write-Host "  Planning board is running in 4 tabs." -ForegroundColor Cyan
-    Write-Host "  Assessors explore the codebase in parallel." -ForegroundColor Gray
-    Write-Host "  Synthesizer waits for all 3, then writes proposed-plan.json." -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "  When complete, run:" -ForegroundColor Cyan
-    Write-Host "    team apply" -ForegroundColor White
+    Write-Host "  `u{2705} Plan ready! Run: team apply" -ForegroundColor Green
     Write-Host ""
 }
+
 
 # ── apply ────────────────────────────────────────────────────────────────────
 # Reads a proposed plan from .agent-teams/.plan/proposed-plan.json, shows it
