@@ -228,6 +228,7 @@ function Invoke-Init([string]$teamName, [string]$scenario, [string]$templateName
         New-Item -ItemType Directory -Force -Path (Join-Path $dir $sub) | Out-Null
     }
     New-Item -ItemType Directory -Force -Path (Join-Path $dir "artifacts\requests") | Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $dir "artifacts\checkpoints") | Out-Null
 
     # Pre-create lead inbox so agents can append from the start
     Set-Content (Join-Path $dir "mailbox\lead.inbox") "" -Encoding UTF8
@@ -737,6 +738,12 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
     Write-Host "  `u{1F680} Orchestrating team '$teamName'" -ForegroundColor Cyan
     Write-Host ""
 
+    $orchestratorStart = Get-Date
+    $waveSummary = @()
+    $totalSpawned = 0
+    $totalRecoveries = 0
+    $totalDeadAgents = 0
+
     $waveNum = 0
     while ($true) {
         $waveNum++
@@ -763,6 +770,8 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
 
         Write-Host "  `u{2500}`u{2500} Wave $waveNum `u{2500}`u{2500}" -ForegroundColor Cyan
         Write-OrchestratorLog $teamDir "Wave $waveNum starting with roles: $($pendingRoles -join ', ')"
+
+        $waveStart = Get-Date
 
         # Spawn this wave's roles
         $doneFiles = @{}
@@ -819,6 +828,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
 
             Write-Host "    `u{1F7E2} $($roleProp.Value.name) ($roleKey)" -ForegroundColor Green
             Write-OrchestratorLog $teamDir "Spawning $roleKey (attempt $attempts)"
+            $totalSpawned++
             Start-Sleep -Milliseconds 800
         }
 
@@ -854,6 +864,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
                     Write-Host "    🔧 $roleKey — recovered (tasks done, .done signal was missing)" -ForegroundColor Yellow
                     Write-OrchestratorLog $teamDir "Role $roleKey auto-recovered (tasks done, .done missing)"
                     Append-Event $teamDir "auto_recovered" "" $roleKey "tasks done, .done missing"
+                    $totalRecoveries++
                     continue
                 }
 
@@ -903,6 +914,7 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
             # If all remaining agents are dead, auto-retry them
             if ($deadAgents.Count -eq $remaining.Count -and $remaining.Count -gt 0 -and $elapsed -gt 120) {
                 foreach ($da in $deadAgents) {
+                    $totalDeadAgents++
                     # Check poison pill (max retries)
                     $attemptsFile = Join-Path $launchDir "$da.attempts"
                     $attempts = 0
@@ -943,6 +955,8 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
                         New-RoleLauncher -TeamName $teamName -RoleKey $da -Role $roleProp.Value `
                             -ProjectDir $projectDir -TeamDir $teamDir -DoneFile $doneFiles[$da]
                         Write-Host "    🟢 $da relaunched" -ForegroundColor Green
+                        $totalSpawned++
+                        $totalRecoveries++
                     }
                 }
                 
@@ -982,6 +996,15 @@ function Invoke-Launch([string]$teamName, [string]$specificRole) {
         Write-Host "    `u{2705} Wave $waveNum complete" -ForegroundColor Green
         Write-OrchestratorLog $teamDir "Wave $waveNum complete"
         Append-Event $teamDir "wave_complete" "" "" "wave=$waveNum"
+
+        $waveEnd = Get-Date
+        $waveDuration = [math]::Round(($waveEnd - $waveStart).TotalSeconds)
+        $waveSummary += [PSCustomObject]@{
+            Wave = $waveNum
+            Roles = ($pendingRoles -join ", ")
+            Duration = $waveDuration
+        }
+
         Write-Host ""
 
         # Unblock next wave

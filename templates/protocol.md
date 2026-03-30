@@ -69,7 +69,7 @@ You must maintain a heartbeat file at `heartbeat/{your-role-key}.json` so the te
 
 | Field | Type | Description |
 |---|---|---|
-| `status` | `"active" \| "idle" \| "blocked"` | Current agent state |
+| `status` | `"active" \| "idle" \| "blocked" \| "checkpointed"` | Current agent state |
 | `current_task` | `string \| null` | The `id` of the task being worked, or `null` if idle |
 | `last_active` | `string` (ISO 8601) | Timestamp of the last heartbeat update |
 
@@ -131,6 +131,61 @@ If you are a **reviewer** role and find issues during review:
 
 ### Max iterations:
 The orchestrator limits waves. If after 3 review cycles issues persist, the team is done. Remaining findings are documented in the review artifact.
+
+## Context Checkpoints
+
+If you are running low on context (you notice your responses getting shorter, you're forgetting earlier details, or you've been working for a long time), create a checkpoint:
+
+### How to checkpoint:
+
+1. Write a checkpoint file to `artifacts/checkpoints/{your-role-key}-checkpoint-{N}.json`:
+   ```json
+   {
+     "role": "{your-role-key}",
+     "checkpoint_number": 1,
+     "timestamp": "{iso8601}",
+     "current_task": "{task-id}",
+     "task_status": "partial",
+     "completed_work": [
+       "Created src/api/routes.js with 3 endpoints",
+       "Updated package.json with express dependency"
+     ],
+     "remaining_work": [
+       "Add error handling middleware",
+       "Write integration tests"
+     ],
+     "key_decisions": [
+       "Chose Express over Fastify for simplicity",
+       "Using ESM imports throughout"
+     ],
+     "files_modified": ["src/api/routes.js", "package.json"],
+     "notes": "Any context a fresh session needs to continue"
+   }
+   ```
+
+2. Update your heartbeat to `{"status": "checkpointed", ...}`
+3. Message `mailbox/lead.inbox`:
+   ```
+   [FROM: {role}] [TIME: {iso8601}]
+   Context checkpoint #{N} written. Task {id} partially complete.
+   Remaining: {summary of remaining work}. Ready for handoff.
+   ---
+   ```
+4. Exit your session (type /exit or let -p complete)
+
+### How handoff works:
+
+When the orchestrator detects a checkpointed agent (heartbeat says "checkpointed"):
+1. It reads the latest checkpoint file
+2. Relaunches the role with an augmented prompt:
+   "You are continuing from a checkpoint. Read artifacts/checkpoints/{role}-checkpoint-{N}.json for your state."
+3. The fresh session picks up from where the previous one left off
+
+### Rules:
+- Checkpoint EARLY — don't wait until you're confused
+- Include ALL key decisions and rationale
+- List specific files modified so the next session can verify
+- The checkpoint file IS the handoff — make it complete enough for a stranger to continue
 
 ## Message Format
 
