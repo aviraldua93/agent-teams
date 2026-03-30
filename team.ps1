@@ -227,6 +227,7 @@ function Invoke-Init([string]$teamName, [string]$scenario, [string]$templateName
     foreach ($sub in @("artifacts", "mailbox", "roles", "heartbeat", "logs", ".launch", "locks")) {
         New-Item -ItemType Directory -Force -Path (Join-Path $dir $sub) | Out-Null
     }
+    New-Item -ItemType Directory -Force -Path (Join-Path $dir "artifacts\requests") | Out-Null
 
     # Pre-create lead inbox so agents can append from the start
     Set-Content (Join-Path $dir "mailbox\lead.inbox") "" -Encoding UTF8

@@ -4,7 +4,7 @@
   "roles": [
     {
       "key": "architect",
-      "description": "Designs the API contract and UI spec, defines interfaces between frontend and backend",
+      "description": "Defines the API contract and UI spec, and boundary ownership (which role owns which directories)",
       "model": null,
       "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": false }
@@ -25,7 +25,7 @@
     },
     {
       "key": "reviewer",
-      "description": "Reviews the full stack for correctness, API contract adherence, and integration issues",
+      "description": "Reviews the full stack for correctness, API contract adherence, and integration issues. Creates fix tasks for blocking findings.",
       "model": null,
       "allowed_tools": ["view", "glob", "grep", "explore", "edit", "create", "powershell", "task", "code-review"],
       "sub_agent_policy": { "explore": true, "task": true, "general-purpose": false, "code-review": true }

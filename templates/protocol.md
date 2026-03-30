@@ -107,6 +107,31 @@ Your role file (`roles/{your-role-key}.md`) specifies which types are permitted.
 - If all retries fail: report to `mailbox/lead.inbox` that sub-agent failed. Ask lead for guidance.
 - **NEVER silently do the work yourself.** Your context window is precious. Absorbing IC work into a coordinator's context defeats the entire architecture. Report the failure, let the lead re-assign or split the task.
 
+## Review Feedback Loop
+
+If you are a **reviewer** role and find issues during review:
+
+1. Write your review deliverable with findings (as normal)
+2. For each BLOCKING or MEDIUM finding, create a fix task in tasks.json:
+   - id: "fix-{finding-number}" (e.g., "fix-1", "fix-2")
+   - title: concise description of what needs fixing
+   - assigned_to: the role that should fix it (usually the coder)
+   - depends_on: [] (no dependencies — the code already exists)
+   - status: "pending"
+3. Optionally create a "re-review" task assigned to yourself:
+   - id: "re-review"
+   - depends_on: all fix task ids
+   - status: "blocked"
+4. The orchestrator will detect pending tasks and run another wave automatically.
+
+### When NOT to create fix tasks:
+- LOW severity findings — mention in review, don't create tasks
+- Style/formatting issues — not worth a wave
+- If all findings are LOW → mark your review task done, no loop needed
+
+### Max iterations:
+The orchestrator limits waves. If after 3 review cycles issues persist, the team is done. Remaining findings are documented in the review artifact.
+
 ## Message Format
 
 When writing to any `mailbox/*.inbox` file, use this format:
@@ -180,6 +205,60 @@ Before editing any project source file:
 - ALWAYS release locks when done (delete the lock file)
 - Lock files go in the `locks/` directory, NOT next to the source file
 - TTL default is 300 seconds (5 minutes) — if your edit takes longer, update the lock's `acquired` timestamp
+
+## Cross-Boundary Requests
+
+When you need a change in files you DON'T own, use an interface request — don't edit the file yourself.
+
+### How to request:
+
+1. Create a JSON file in `artifacts/requests/`:
+   - Filename: `{from-role}--to--{to-role}--{description}.json`
+   - Example: `frontend--to--backend--add-users-endpoint.json`
+
+2. Format:
+   ```json
+   {
+     "from": "frontend",
+     "to": "backend",
+     "type": "new-endpoint",
+     "priority": "blocking",
+     "description": "Need GET /api/users/:id for the profile page",
+     "schema": {
+       "method": "GET",
+       "path": "/api/users/:id",
+       "response": { "id": "string", "name": "string", "email": "string" }
+     }
+   }
+   ```
+
+3. Also append a notification to `mailbox/{to-role}.inbox`:
+   ```
+   [FROM: {your-role}] [TIME: {iso8601}]
+   Interface request: {description}. See artifacts/requests/{filename}.json
+   ---
+   ```
+
+### How to fulfill:
+
+1. Poll `artifacts/requests/` for files addressed to you (`--to--{your-role}--`)
+2. Read the request
+3. Implement the change in your owned files
+4. Write a response file: `{original-filename}.response.json`
+   ```json
+   {
+     "status": "fulfilled",
+     "details": "Added GET /api/users/:id to src/api/routes.js",
+     "fulfilled_at": "{iso8601}"
+   }
+   ```
+
+### Rules:
+- Requests are the ONLY way to get cross-boundary changes
+- You may CREATE new files freely (new files have no owner conflict)
+- You may READ any file in the project
+- You may only EDIT files listed in your `owns_files`
+- If you need to edit a file you don't own → write an interface request
 
 ## Logging
 
