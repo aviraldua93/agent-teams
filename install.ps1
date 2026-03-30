@@ -36,8 +36,22 @@ Write-Host "     ✅ team.ps1" -ForegroundColor Green
 Write-Host "     ✅ templates/protocol.md" -ForegroundColor Green
 Write-Host "     ✅ templates/role.md" -ForegroundColor Green
 
-# 2. Add to PowerShell profile
-$profilePath = $PROFILE.CurrentUserAllHosts
+# 2. Add to PowerShell profile (pick the best available)
+$profileCandidates = @(
+    $PROFILE,                        # CurrentUserCurrentHost (default for `. $PROFILE`)
+    $PROFILE.CurrentUserAllHosts     # Shared across all hosts
+)
+$profilePath = $null
+foreach ($p in $profileCandidates) {
+    if (Test-Path $p) { $profilePath = $p; break }
+}
+if (-not $profilePath) {
+    # None exist — create the default one (most likely to be loaded)
+    $profilePath = $PROFILE
+    $parentDir = Split-Path $profilePath -Parent
+    if (-not (Test-Path $parentDir)) { New-Item -ItemType Directory -Force -Path $parentDir | Out-Null }
+    New-Item -ItemType File -Force -Path $profilePath | Out-Null
+}
 $aliasLine = 'function team { & "$env:USERPROFILE\.agent-teams\team.ps1" @args }'
 $marker = "# Agent Teams CLI"
 
