@@ -1,0 +1,65 @@
+#!/usr/bin/env pwsh
+# ============================================================================
+# install.ps1 — Install Agent Teams for GitHub Copilot CLI
+#
+# What this does:
+#   1. Copies team.ps1 + templates to ~/.copilot/teams/
+#   2. Adds the `team` function to your PowerShell profile
+#
+# Usage:
+#   .\install.ps1
+#
+# To uninstall:
+#   Remove the `team` function line from your PowerShell profile
+#   Remove ~/.copilot/teams/ directory
+# ============================================================================
+
+$ErrorActionPreference = "Stop"
+
+$SourceDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$TargetDir = Join-Path $env:USERPROFILE ".copilot\teams"
+$TemplatesTarget = Join-Path $TargetDir "templates"
+
+Write-Host ""
+Write-Host "  Agent Teams — Installer" -ForegroundColor Cyan
+Write-Host ""
+
+# 1. Copy files
+Write-Host "  📁 Installing to $TargetDir" -ForegroundColor White
+New-Item -ItemType Directory -Force -Path $TemplatesTarget | Out-Null
+
+Copy-Item (Join-Path $SourceDir "team.ps1") $TargetDir -Force
+Copy-Item (Join-Path $SourceDir "templates\protocol.md") $TemplatesTarget -Force
+Copy-Item (Join-Path $SourceDir "templates\role.md") $TemplatesTarget -Force
+
+Write-Host "     ✅ team.ps1" -ForegroundColor Green
+Write-Host "     ✅ templates/protocol.md" -ForegroundColor Green
+Write-Host "     ✅ templates/role.md" -ForegroundColor Green
+
+# 2. Add to PowerShell profile
+$profilePath = $PROFILE.CurrentUserAllHosts
+$aliasLine = 'function team { & "$env:USERPROFILE\.copilot\teams\team.ps1" @args }'
+$marker = "# Agent Teams CLI"
+
+if (Test-Path $profilePath) {
+    $profileContent = Get-Content $profilePath -Raw -Encoding UTF8
+} else {
+    $profileContent = ""
+    New-Item -ItemType File -Force -Path $profilePath | Out-Null
+}
+
+if ($profileContent -match "Agent Teams CLI") {
+    Write-Host "  ⏭️  Profile alias already exists — skipping" -ForegroundColor Yellow
+} else {
+    $addition = "`n$marker`n$aliasLine`n"
+    Add-Content $profilePath $addition -Encoding UTF8
+    Write-Host "  ✅ Added 'team' function to $profilePath" -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "  Done! Restart your terminal or run:" -ForegroundColor Cyan
+Write-Host "    . `$PROFILE" -ForegroundColor Gray
+Write-Host ""
+Write-Host "  Then try:" -ForegroundColor Cyan
+Write-Host "    team" -ForegroundColor Gray
+Write-Host ""

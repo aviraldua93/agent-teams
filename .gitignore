@@ -1,0 +1,15 @@
+# Ignore team runtime data
+heartbeat/
+logs/
+.launch/
+artifacts/
+mailbox/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Editor
+.vscode/
+*.swp
+*~
