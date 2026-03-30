@@ -7,6 +7,10 @@ Each agent runs in its own terminal tab with a dedicated role, tools, and file o
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6)
 ![PowerShell 7+](https://img.shields.io/badge/PowerShell-7%2B-5391FE)
+![Version](https://img.shields.io/badge/Version-0.4.0-green)
+![GitHub Copilot CLI](https://img.shields.io/badge/GitHub%20Copilot-CLI-8957e5)
+[![GitHub Issues](https://img.shields.io/github/issues/aviraldua93/agent-teams)](https://github.com/aviraldua93/agent-teams/issues)
+![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen)
 
 ```
   ┌──────────────┐
