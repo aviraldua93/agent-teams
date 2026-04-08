@@ -1,0 +1,242 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a0a1a"/>
+      <stop offset="100%" stop-color="#0d1033"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+    <linearGradient id="busGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5" opacity="0.4"/>
+    </pattern>
+    <filter id="glow-blue">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <style>
+      @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+      @keyframes pulse-slow { 0%,100% { opacity: 0.2; } 50% { opacity: 0.6; } }
+      @keyframes dash-flow { 0% { stroke-dashoffset: 24; } 100% { stroke-dashoffset: 0; } }
+      @keyframes dash-flow-r { 0% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 24; } }
+      @keyframes float-y { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-6px); } }
+      @keyframes float-y2 { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(6px); } }
+      @keyframes scale-pulse { 0%,100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.15); opacity: 1; } }
+      @keyframes ripple { 0% { r: 8; opacity: 0.6; } 100% { r: 28; opacity: 0; } }
+      @keyframes scan { 0% { transform: translateY(-200px); opacity: 0; } 10% { opacity: 0.12; } 90% { opacity: 0.12; } 100% { transform: translateY(200px); opacity: 0; } }
+      @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+      @keyframes particle-up { 0% { transform: translateY(0) scale(1); opacity: 0.8; } 100% { transform: translateY(-60px) scale(0); opacity: 0; } }
+      @keyframes glow-breathe { 0%,100% { filter: drop-shadow(0 0 4px #3b82f6); } 50% { filter: drop-shadow(0 0 12px #8b5cf6); } }
+      @keyframes doc-slide { 0% { transform: translateX(-20px); opacity: 0; } 30% { opacity: 0.8; } 70% { opacity: 0.8; } 100% { transform: translateX(20px); opacity: 0; } }
+      @keyframes orbit { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      .scan-line { animation: scan 4.5s ease-in-out infinite; }
+      .node-pulse { animation: pulse 2s ease-in-out infinite; }
+      .node-pulse-d1 { animation: pulse 2s ease-in-out 0.4s infinite; }
+      .node-pulse-d2 { animation: pulse 2s ease-in-out 0.8s infinite; }
+      .node-pulse-d3 { animation: pulse 2s ease-in-out 1.2s infinite; }
+      .node-pulse-d4 { animation: pulse 2s ease-in-out 1.6s infinite; }
+      .flow-line { animation: dash-flow 1s linear infinite; }
+      .flow-line-r { animation: dash-flow-r 1s linear infinite; }
+      .flow-line-d1 { animation: dash-flow 1s linear 0.25s infinite; }
+      .flow-line-d2 { animation: dash-flow 1s linear 0.5s infinite; }
+      .flow-line-d3 { animation: dash-flow 1s linear 0.75s infinite; }
+      .float { animation: float-y 3s ease-in-out infinite; }
+      .float-d1 { animation: float-y 3s ease-in-out 0.5s infinite; }
+      .float-d2 { animation: float-y2 3s ease-in-out 1s infinite; }
+      .float-d3 { animation: float-y 4s ease-in-out 1.5s infinite; }
+      .ripple1 { animation: ripple 2.5s ease-out infinite; }
+      .ripple2 { animation: ripple 2.5s ease-out 0.8s infinite; }
+      .particle { animation: particle-up 2s ease-out infinite; }
+      .particle-d1 { animation: particle-up 2s ease-out 0.4s infinite; }
+      .particle-d2 { animation: particle-up 2s ease-out 0.8s infinite; }
+      .particle-d3 { animation: particle-up 2s ease-out 1.2s infinite; }
+      .particle-d4 { animation: particle-up 2s ease-out 1.6s infinite; }
+      .glow-b { animation: glow-breathe 3s ease-in-out infinite; }
+      .blink-cursor { animation: blink 1s step-end infinite; }
+      .pulse-slow { animation: pulse-slow 4s ease-in-out infinite; }
+      .scale-p { animation: scale-pulse 2.5s ease-in-out infinite; }
+      .doc-flow { animation: doc-slide 2.5s ease-in-out infinite; }
+      .doc-flow-d1 { animation: doc-slide 2.5s ease-in-out 0.5s infinite; }
+      .doc-flow-d2 { animation: doc-slide 2.5s ease-in-out 1s infinite; }
+      .doc-flow-d3 { animation: doc-slide 2.5s ease-in-out 1.5s infinite; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="400" fill="url(#bg)"/>
+  <rect width="800" height="400" fill="url(#grid)"/>
+
+  <!-- Scanning line -->
+  <rect class="scan-line" x="0" y="195" width="800" height="10" fill="url(#busGrad)" opacity="0.08" rx="2"/>
+
+  <!-- Corner decorations -->
+  <path d="M 20 50 L 20 20 L 50 20" fill="none" stroke="#3b82f6" stroke-width="1.5" opacity="0.5"/>
+  <path d="M 750 20 L 780 20 L 780 50" fill="none" stroke="#8b5cf6" stroke-width="1.5" opacity="0.5"/>
+  <path d="M 20 350 L 20 370 L 50 370" fill="none" stroke="#22c55e" stroke-width="1.5" opacity="0.5"/>
+  <path d="M 750 370 L 780 370 L 780 350" fill="none" stroke="#3b82f6" stroke-width="1.5" opacity="0.5"/>
+
+  <!-- Title -->
+  <text x="400" y="48" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="32" font-weight="900" letter-spacing="4" fill="url(#titleGrad)">AGENT TEAMS</text>
+  <text x="400" y="70" text-anchor="middle" font-family="'Cascadia Code','Fira Code',monospace" font-size="10" fill="#94a3b8" letter-spacing="1">Turn One Copilot CLI Into a Team of Parallel Specialists</text>
+
+  <!-- ===== CENTRAL BUS LINE ===== -->
+  <rect x="110" y="213" width="580" height="4" rx="2" fill="#0f172a" stroke="url(#busGrad)" stroke-width="1" opacity="0.4"/>
+  <line x1="110" y1="215" x2="690" y2="215" stroke="url(#busGrad)" stroke-width="2" stroke-dasharray="6,6" class="flow-line" opacity="0.7"/>
+  <!-- Bus label -->
+  <text x="400" y="240" text-anchor="middle" font-family="monospace" font-size="7" fill="#8b5cf6" opacity="0.6" letter-spacing="3">DOCS-AS-BUS</text>
+
+  <!-- Flowing documents on bus -->
+  <g class="doc-flow">
+    <rect x="250" y="208" width="14" height="10" rx="1" fill="#0f172a" stroke="#3b82f6" stroke-width="0.8"/>
+    <line x1="253" y1="211" x2="261" y2="211" stroke="#3b82f6" stroke-width="0.4" opacity="0.6"/>
+    <line x1="253" y1="214" x2="259" y2="214" stroke="#3b82f6" stroke-width="0.4" opacity="0.6"/>
+  </g>
+  <g class="doc-flow-d1">
+    <rect x="400" y="208" width="14" height="10" rx="1" fill="#0f172a" stroke="#8b5cf6" stroke-width="0.8"/>
+    <line x1="403" y1="211" x2="411" y2="211" stroke="#8b5cf6" stroke-width="0.4" opacity="0.6"/>
+    <line x1="403" y1="214" x2="409" y2="214" stroke="#8b5cf6" stroke-width="0.4" opacity="0.6"/>
+  </g>
+  <g class="doc-flow-d2">
+    <rect x="550" y="208" width="14" height="10" rx="1" fill="#0f172a" stroke="#22c55e" stroke-width="0.8"/>
+    <line x1="553" y1="211" x2="561" y2="211" stroke="#22c55e" stroke-width="0.4" opacity="0.6"/>
+    <line x1="553" y1="214" x2="559" y2="214" stroke="#22c55e" stroke-width="0.4" opacity="0.6"/>
+  </g>
+
+  <!-- ===== AGENT 1: Researcher (left) ===== -->
+  <g class="float">
+    <!-- Connection to bus -->
+    <line x1="220" y1="175" x2="220" y2="213" stroke="#3b82f6" stroke-width="1" stroke-dasharray="4,4" class="flow-line-d1" opacity="0.5"/>
+    <circle cx="220" cy="213" r="3" fill="#3b82f6" opacity="0.5" class="node-pulse"/>
+    <!-- Agent node -->
+    <rect x="185" y="105" width="70" height="70" rx="8" fill="#0f172a" stroke="#3b82f6" stroke-width="1.5" class="node-pulse"/>
+    <circle cx="220" cy="105" class="ripple1" fill="none" stroke="#3b82f6" stroke-width="0.6"/>
+    <!-- Terminal chrome -->
+    <rect x="185" y="105" width="70" height="14" rx="8" fill="#141b2d"/>
+    <circle cx="195" cy="112" r="2.5" fill="#ef4444" opacity="0.7"/>
+    <circle cx="203" cy="112" r="2.5" fill="#f59e0b" opacity="0.7"/>
+    <circle cx="211" cy="112" r="2.5" fill="#22c55e" opacity="0.7"/>
+    <!-- Content -->
+    <text x="220" y="140" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="18" fill="#3b82f6">🔬</text>
+    <text x="220" y="155" text-anchor="middle" font-family="monospace" font-size="7" fill="#3b82f6">RESEARCHER</text>
+    <text x="220" y="166" text-anchor="middle" font-family="monospace" font-size="6" fill="#64748b">explore · grep</text>
+  </g>
+
+  <!-- ===== AGENT 2: Builder (center) ===== -->
+  <g class="float-d1">
+    <!-- Connection to bus -->
+    <line x1="400" y1="175" x2="400" y2="213" stroke="#8b5cf6" stroke-width="1" stroke-dasharray="4,4" class="flow-line-d2" opacity="0.5"/>
+    <circle cx="400" cy="213" r="3" fill="#8b5cf6" opacity="0.5" class="node-pulse-d1"/>
+    <!-- Agent node -->
+    <rect x="365" y="105" width="70" height="70" rx="8" fill="#0f172a" stroke="#8b5cf6" stroke-width="1.5" class="node-pulse-d1"/>
+    <circle cx="400" cy="105" class="ripple2" fill="none" stroke="#8b5cf6" stroke-width="0.6"/>
+    <!-- Terminal chrome -->
+    <rect x="365" y="105" width="70" height="14" rx="8" fill="#141b2d"/>
+    <circle cx="375" cy="112" r="2.5" fill="#ef4444" opacity="0.7"/>
+    <circle cx="383" cy="112" r="2.5" fill="#f59e0b" opacity="0.7"/>
+    <circle cx="391" cy="112" r="2.5" fill="#22c55e" opacity="0.7"/>
+    <!-- Content -->
+    <text x="400" y="140" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="18" fill="#8b5cf6">🏗</text>
+    <text x="400" y="155" text-anchor="middle" font-family="monospace" font-size="7" fill="#8b5cf6">BUILDER</text>
+    <text x="400" y="166" text-anchor="middle" font-family="monospace" font-size="6" fill="#64748b">edit · create</text>
+  </g>
+
+  <!-- ===== AGENT 3: Writer (right) ===== -->
+  <g class="float-d2">
+    <!-- Connection to bus -->
+    <line x1="580" y1="175" x2="580" y2="213" stroke="#22c55e" stroke-width="1" stroke-dasharray="4,4" class="flow-line-d3" opacity="0.5"/>
+    <circle cx="580" cy="213" r="3" fill="#22c55e" opacity="0.5" class="node-pulse-d2"/>
+    <!-- Agent node -->
+    <rect x="545" y="105" width="70" height="70" rx="8" fill="#0f172a" stroke="#22c55e" stroke-width="1.5" class="node-pulse-d2"/>
+    <circle cx="580" cy="105" class="ripple1" fill="none" stroke="#22c55e" stroke-width="0.6"/>
+    <!-- Terminal chrome -->
+    <rect x="545" y="105" width="70" height="14" rx="8" fill="#141b2d"/>
+    <circle cx="555" cy="112" r="2.5" fill="#ef4444" opacity="0.7"/>
+    <circle cx="563" cy="112" r="2.5" fill="#f59e0b" opacity="0.7"/>
+    <circle cx="571" cy="112" r="2.5" fill="#22c55e" opacity="0.7"/>
+    <!-- Content -->
+    <text x="580" y="140" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="18" fill="#22c55e">📝</text>
+    <text x="580" y="155" text-anchor="middle" font-family="monospace" font-size="7" fill="#22c55e">WRITER</text>
+    <text x="580" y="166" text-anchor="middle" font-family="monospace" font-size="6" fill="#64748b">docs · readme</text>
+  </g>
+
+  <!-- ===== Mini PowerShell Panel (left) ===== -->
+  <g class="float-d2">
+    <rect x="40" y="265" width="155" height="80" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+    <rect x="40" y="265" width="155" height="16" rx="6" fill="#141b2d"/>
+    <circle cx="52" cy="273" r="3" fill="#ef4444" opacity="0.8"/>
+    <circle cx="62" cy="273" r="3" fill="#f59e0b" opacity="0.8"/>
+    <circle cx="72" cy="273" r="3" fill="#22c55e" opacity="0.8"/>
+    <text x="118" y="276" text-anchor="middle" font-family="monospace" font-size="7" fill="#475569">powershell</text>
+    <text x="48" y="293" font-family="monospace" font-size="7" fill="#3b82f6">PS&gt;</text>
+    <text x="66" y="293" font-family="monospace" font-size="7" fill="#94a3b8"> agent-teams deploy</text>
+    <text x="48" y="305" font-family="monospace" font-size="7" fill="#22c55e">✓</text>
+    <text x="56" y="305" font-family="monospace" font-size="7" fill="#64748b"> researcher spawned</text>
+    <text x="48" y="317" font-family="monospace" font-size="7" fill="#22c55e">✓</text>
+    <text x="56" y="317" font-family="monospace" font-size="7" fill="#64748b"> builder spawned</text>
+    <text x="48" y="329" font-family="monospace" font-size="7" fill="#22c55e">✓</text>
+    <text x="56" y="329" font-family="monospace" font-size="7" fill="#64748b"> writer spawned</text>
+    <text x="48" y="341" font-family="monospace" font-size="7" fill="#8b5cf6">⟩</text>
+    <text x="55" y="341" font-family="monospace" font-size="7" fill="#64748b"> bus active</text>
+    <rect x="99" y="335" width="5" height="10" fill="#3b82f6" opacity="0.6" class="blink-cursor"/>
+  </g>
+
+  <!-- ===== Mini Handoff Panel (right) ===== -->
+  <g class="float">
+    <rect x="605" y="265" width="155" height="80" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+    <rect x="605" y="265" width="155" height="16" rx="6" fill="#141b2d"/>
+    <circle cx="617" cy="273" r="3" fill="#ef4444" opacity="0.8"/>
+    <circle cx="627" cy="273" r="3" fill="#f59e0b" opacity="0.8"/>
+    <circle cx="637" cy="273" r="3" fill="#22c55e" opacity="0.8"/>
+    <text x="683" y="276" text-anchor="middle" font-family="monospace" font-size="7" fill="#475569">handoff</text>
+    <text x="613" y="293" font-family="monospace" font-size="7" fill="#3b82f6">→</text>
+    <text x="623" y="293" font-family="monospace" font-size="7" fill="#94a3b8"> research.md</text>
+    <text x="748" y="293" font-family="monospace" font-size="7" fill="#22c55e" text-anchor="end">2.4KB</text>
+    <text x="613" y="305" font-family="monospace" font-size="7" fill="#8b5cf6">→</text>
+    <text x="623" y="305" font-family="monospace" font-size="7" fill="#94a3b8"> impl.patch</text>
+    <text x="748" y="305" font-family="monospace" font-size="7" fill="#22c55e" text-anchor="end">5.1KB</text>
+    <text x="613" y="317" font-family="monospace" font-size="7" fill="#22c55e">→</text>
+    <text x="623" y="317" font-family="monospace" font-size="7" fill="#94a3b8"> README.md</text>
+    <text x="748" y="317" font-family="monospace" font-size="7" fill="#22c55e" text-anchor="end">1.8KB</text>
+    <text x="613" y="331" font-family="monospace" font-size="6" fill="#475569">───────────────────────</text>
+    <text x="613" y="341" font-family="monospace" font-size="7" fill="#22c55e">✓</text>
+    <text x="623" y="341" font-family="monospace" font-size="7" fill="#64748b"> all artifacts merged</text>
+  </g>
+
+  <!-- Ambient connection lines from agents to panels -->
+  <line x1="190" y1="175" x2="150" y2="265" stroke="#3b82f6" stroke-width="0.5" stroke-dasharray="3,3" class="flow-line" opacity="0.2"/>
+  <line x1="610" y1="175" x2="650" y2="265" stroke="#22c55e" stroke-width="0.5" stroke-dasharray="3,3" class="flow-line-d2" opacity="0.2"/>
+
+  <!-- Cross-agent connection arcs (subtle) -->
+  <path d="M255 140 Q 310 90 365 140" fill="none" stroke="#3b82f6" stroke-width="0.6" stroke-dasharray="3,3" class="flow-line-d1" opacity="0.3"/>
+  <path d="M435 140 Q 490 90 545 140" fill="none" stroke="#8b5cf6" stroke-width="0.6" stroke-dasharray="3,3" class="flow-line-d2" opacity="0.3"/>
+
+  <!-- Particles -->
+  <circle cx="180" cy="190" r="1.5" fill="#3b82f6" class="particle"/>
+  <circle cx="350" cy="195" r="1" fill="#8b5cf6" class="particle-d1"/>
+  <circle cx="450" cy="192" r="1.5" fill="#8b5cf6" class="particle-d2"/>
+  <circle cx="550" cy="188" r="1" fill="#22c55e" class="particle-d3"/>
+  <circle cx="650" cy="193" r="1.5" fill="#22c55e" class="particle-d4"/>
+  <circle cx="300" cy="200" r="1" fill="#3b82f6" class="particle-d3"/>
+  <circle cx="500" cy="198" r="1" fill="#22c55e" class="particle-d1"/>
+
+  <!-- Ambient floating dots -->
+  <circle cx="60" cy="130" r="2" fill="#3b82f6" class="pulse-slow"/>
+  <circle cx="740" cy="140" r="2" fill="#22c55e" class="pulse-slow"/>
+  <circle cx="400" cy="260" r="1.5" fill="#8b5cf6" class="pulse-slow"/>
+  <circle cx="130" cy="210" r="1" fill="#3b82f6" opacity="0.3" class="node-pulse-d2"/>
+  <circle cx="670" cy="210" r="1" fill="#22c55e" opacity="0.3" class="node-pulse-d4"/>
+
+  <!-- Status bar -->
+  <rect x="0" y="376" width="800" height="24" fill="#080812" opacity="0.9"/>
+  <rect x="0" y="376" width="800" height="1" fill="#1e293b" opacity="0.5"/>
+  <circle cx="20" cy="388" r="3" fill="#22c55e" class="node-pulse"/>
+  <text x="30" y="391" font-family="monospace" font-size="9" fill="#475569">powershell cli · docs-as-bus · cross-session · dogfoods itself</text>
+  <text x="780" y="391" text-anchor="end" font-family="monospace" font-size="9" fill="#475569">v0.1.0</text>
+</svg>
