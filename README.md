@@ -1,3 +1,5 @@
+<p align="center"><img src="hero.svg" alt="Agent Teams Hero" width="800" /></p>
+
 # Agent Teams
 
 **One command. Three terminal tabs. A team of AI agents building your feature while you watch.**
