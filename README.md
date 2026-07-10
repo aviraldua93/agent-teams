@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6)
 ![PowerShell 7+](https://img.shields.io/badge/PowerShell-7%2B-5391FE)
-![Version](https://img.shields.io/badge/Version-0.6.0-green)
+![Version](https://img.shields.io/badge/Version-0.5.0-green)
 ![GitHub Copilot CLI](https://img.shields.io/badge/GitHub%20Copilot-CLI-8957e5)
 [![GitHub Issues](https://img.shields.io/github/issues/aviraldua93/agent-teams)](https://github.com/aviraldua93/agent-teams/issues)
 ![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen)
@@ -510,7 +510,7 @@ current     ─► polish     ─► feedback loops ─► context eng  ─► s
                                grading          handoffs       planner         web dashboard
 ```
 
-**v0.5** (now) — Wave orchestration, 13 templates, 3-probe failure detection, feasibility assessment, 43 unit tests, CI pipeline.
+**v0.5** (now) — Wave orchestration, 13 templates, 3-probe failure detection, feasibility assessment, 40 unit tests, CI pipeline.
 
 **v0.7** (the big one) — Generator ↔ Evaluator loops. Reviewer creates fix tasks, orchestrator runs another wave. Iterative refinement until quality thresholds pass.
 
@@ -533,6 +533,20 @@ cd agent-teams
 Restart your terminal (or `. $PROFILE`).
 
 **Requirements:** [GitHub Copilot CLI](https://docs.github.com/copilot/how-tos/copilot-cli) (`copilot`), [Windows Terminal](https://aka.ms/terminal) (`wt`), PowerShell 7+ (`pwsh`).
+
+### Try the example
+
+A ready-to-run, end-to-end demo lives in [`examples/calculator.ps1`](examples/calculator.ps1). After installing, `cd` into any scratch project directory and run it to spin up a 3-agent team (architect → coder → reviewer) that builds a small calculator CLI:
+
+```powershell
+.\examples\calculator.ps1
+```
+
+### Run the tests
+
+```powershell
+.\tests\run-tests.ps1    # Pester v5 suite (installs Pester if missing)
+```
 
 ---
 

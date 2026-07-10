@@ -2,7 +2,7 @@
 
 ## Where We Are
 
-**v0.5** (current) — Working CLI with wave orchestration, 13 templates, 3-probe failure detection, feasibility assessment, 43 unit tests, CI pipeline. Three successful E2E runs (calculator ×2, iris ML).
+**v0.5** (current) — Working CLI with wave orchestration, 13 templates, 3-probe failure detection, feasibility assessment, 40 unit tests, CI pipeline. Three successful E2E runs (calculator ×2, iris ML).
 
 **15/22 issues closed.** Core infrastructure is solid. Missing: feedback loops, structured grading, context handoffs, cross-platform.
 
